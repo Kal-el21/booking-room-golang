@@ -1,0 +1,64 @@
+.PHONY: help build run dev clean test migrate-up migrate-down docker-up docker-down
+
+help: ## Show this help message
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Available targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+install: ## Install dependencies
+	@echo "Installing dependencies..."
+	go mod download
+	go mod tidy
+
+build: ## Build the application
+	@echo "Building application..."
+	go build -o bin/api cmd/api/main.go
+
+run: ## Run the application
+	@echo "Running application..."
+	go run cmd/api/main.go
+
+dev: ## Run with hot reload (requires air)
+	@echo "Running with hot reload..."
+	air
+
+clean: ## Clean build files
+	@echo "Cleaning..."
+	rm -rf bin/
+	rm -rf tmp/
+	go clean
+
+test: ## Run tests
+	@echo "Running tests..."
+	go test -v ./...
+
+test-coverage: ## Run tests with coverage
+	@echo "Running tests with coverage..."
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+
+# Database commands
+db-create: ## Create database
+	@echo "Creating database..."
+	@PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -U $(DB_USER) -c "CREATE DATABASE $(DB_NAME);"
+
+db-drop: ## Drop database
+	@echo "Dropping database..."
+	@PGPASSWORD=$(DB_PASSWORD) psql -h $(DB_HOST) -U $(DB_USER) -c "DROP DATABASE IF EXISTS $(DB_NAME);"
+
+db-reset: db-drop db-create ## Reset database
+	@echo "Database reset complete"
+
+# Docker commands (untuk nanti)
+docker-up: ## Start docker containers
+	docker-compose up -d
+
+docker-down: ## Stop docker containers
+	docker-compose down
+
+docker-logs: ## View docker logs
+	docker-compose logs -f
+
+docker-rebuild: ## Rebuild docker containers
+	docker-compose up -d --build

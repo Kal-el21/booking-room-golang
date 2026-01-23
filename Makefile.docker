@@ -1,0 +1,133 @@
+.PHONY: help docker-build docker-up docker-down docker-restart docker-logs docker-clean
+
+help: ## Show this help message
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Available targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# Docker Compose Commands
+docker-build: ## Build all Docker images
+	@echo "Building Docker images..."
+	docker-compose build
+
+docker-up: ## Start all services
+	@echo "Starting all services..."
+	docker-compose up -d
+	@echo "Waiting for services to be ready..."
+	@sleep 5
+	@echo "Services started successfully!"
+	@make docker-status
+
+docker-down: ## Stop all services
+	@echo "Stopping all services..."
+	docker-compose down
+
+docker-restart: ## Restart all services
+	@echo "Restarting all services..."
+	docker-compose restart
+
+docker-logs: ## View logs from all services
+	docker-compose logs -f
+
+docker-logs-backend: ## View backend logs
+	docker-compose logs -f backend
+
+docker-logs-frontend: ## View frontend logs
+	docker-compose logs -f frontend
+
+docker-logs-db: ## View database logs
+	docker-compose logs -f postgres
+
+docker-status: ## Check status of all services
+	@echo "Service Status:"
+	@docker-compose ps
+	@echo "\nHealth Checks:"
+	@curl -s http://localhost:8080/health | jq || echo "Backend not ready"
+	@curl -s http://localhost/ > /dev/null && echo "Frontend: OK" || echo "Frontend: Not ready"
+
+docker-rebuild: ## Rebuild and restart services
+	@echo "Rebuilding services..."
+	docker-compose build --no-cache
+	docker-compose up -d
+	@make docker-status
+
+# Backend specific
+docker-backend-rebuild: ## Rebuild only backend
+	docker-compose build backend
+	docker-compose up -d backend
+	docker-compose logs -f backend
+
+docker-backend-shell: ## Access backend container shell
+	docker-compose exec backend sh
+
+# Frontend specific
+docker-frontend-rebuild: ## Rebuild only frontend
+	docker-compose build frontend
+	docker-compose up -d frontend
+	docker-compose logs -f frontend
+
+docker-frontend-shell: ## Access frontend container shell
+	docker-compose exec frontend sh
+
+# Database specific
+docker-db-shell: ## Access PostgreSQL shell
+	docker-compose exec postgres psql -U postgres -d room_booking_db
+
+docker-db-backup: ## Backup database
+	@echo "Backing up database..."
+	docker-compose exec postgres pg_dump -U postgres room_booking_db > backup_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "Backup created successfully!"
+
+docker-db-restore: ## Restore database (usage: make docker-db-restore FILE=backup.sql)
+	@if [ -z "$(FILE)" ]; then \
+		echo "Error: Please specify FILE=<backup_file>"; \
+		exit 1; \
+	fi
+	cat $(FILE) | docker-compose exec -T postgres psql -U postgres room_booking_db
+
+# Cleanup
+docker-clean: ## Remove all containers, images, and volumes
+	@echo "⚠️  This will remove all containers, images, and volumes!"
+	@read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
+	docker-compose down -v
+	docker system prune -a --volumes -f
+	@echo "Cleanup completed!"
+
+docker-clean-volumes: ## Remove only volumes (⚠️ deletes database data)
+	@echo "⚠️  This will delete all database data!"
+	@read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ] || exit 1
+	docker-compose down -v
+
+docker-clean-images: ## Remove unused images
+	docker image prune -a -f
+
+# Development
+docker-dev: ## Start services in development mode
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# Production
+docker-prod: ## Start services in production mode
+	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# Testing
+docker-test: ## Run tests in Docker
+	docker-compose exec backend go test -v ./...
+
+# Quick setup
+docker-setup: ## Initial setup (build and start all services)
+	@echo "Setting up Room Booking System with Docker..."
+	@make docker-build
+	@make docker-up
+	@echo "\n✅ Setup complete!"
+	@echo "\nAccess the application:"
+	@echo "  Frontend: http://localhost"
+	@echo "  Backend:  http://localhost:8080"
+	@echo "  API Docs: http://localhost:8080/health"
+
+# Monitor
+docker-stats: ## Show resource usage
+	docker stats
+
+docker-top: ## Show running processes in containers
+	docker-compose top
