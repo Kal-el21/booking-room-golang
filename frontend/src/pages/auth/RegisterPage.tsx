@@ -6,19 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarDays, Loader2, Moon, Sun } from 'lucide-react';
+import type { UserRole } from '@/types';
 
-export const LoginPage = () => {
-  const { login } = useAuth();
+export const RegisterPage = () => {
+  const { register } = useAuth();
   const { theme, toggleTheme } = useTheme();
-
-  console.log("LoginPage rendered");
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
+    name: '',
     email: '',
     password: '',
-    remember_me: false,
+    role: 'user' as UserRole,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,7 +26,7 @@ export const LoginPage = () => {
     setIsLoading(true);
 
     try {
-      await login(formData);
+      await register(formData);
     } catch (error) {
       // Error handled in AuthContext
     } finally {
@@ -62,14 +62,28 @@ export const LoginPage = () => {
               <CalendarDays className="h-10 w-10 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
           <CardDescription>
-            Sign in to your Room Booking System account
+            Sign up for a new Room Booking System account
           </CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                name="name"
+                type="text"
+                placeholder="John Doe"
+                value={formData.name}
+                onChange={handleChange}
+                required
+                disabled={isLoading}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -95,24 +109,32 @@ export const LoginPage = () => {
                 onChange={handleChange}
                 required
                 disabled={isLoading}
+                minLength={6}
               />
+              <p className="text-xs text-muted-foreground">
+                Minimum 6 characters
+              </p>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="remember_me"
-                  checked={formData.remember_me}
-                  onCheckedChange={(checked) =>
-                    setFormData((prev) => ({ ...prev, remember_me: checked }))
-                  }
-                  disabled={isLoading}
-                />
-                <Label htmlFor="remember_me" className="text-sm cursor-pointer">
-                  Remember me for 7 days
-                </Label>
-              </div>
-            </div>
+            {/* <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select
+                value={formData.role}
+                onValueChange={(value: UserRole) =>
+                  setFormData((prev) => ({ ...prev, role: value }))
+                }
+                disabled={isLoading}
+              >
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="room_admin">Room Admin</SelectItem>
+                  <SelectItem value="GA">General Admin (GA)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div> */}
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
@@ -124,20 +146,20 @@ export const LoginPage = () => {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  Creating account...
                 </>
               ) : (
-                'Sign In'
+                'Sign Up'
               )}
             </Button>
 
             <div className="text-sm text-center text-muted-foreground">
-              Don't have an account?{' '}
+              Already have an account?{' '}
               <Link
-                to="/register"
+                to="/login"
                 className="text-primary hover:underline font-medium"
               >
-                Sign up
+                Sign in
               </Link>
             </div>
           </CardFooter>

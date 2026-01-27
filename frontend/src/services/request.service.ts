@@ -1,55 +1,87 @@
-import api from '../lib/api';
-import type { ApiResponse, PaginationParams } from '@/types/api.types';
-import type { RoomRequest, CreateRequestInput } from '../types/request.types';
-import type { Room } from '@/types/room.types';
+import api from './api';
+import type { RoomRequest, Room, ApiResponse, PaginatedResponse } from '@/types';
+
+const REQUEST_PREFIX = '/api/v1/room-requests';
+
+export interface RequestFilters {
+  page?: number;
+  page_size?: number;
+  status?: 'pending' | 'approved' | 'rejected' | 'cancelled';
+}
+
+export interface CreateRequestData {
+  required_capacity: number;
+  purpose: string;
+  notes?: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface ApproveRequestData {
+  room_id: number;
+}
+
+export interface RejectRequestData {
+  reason: string;
+}
 
 export const requestService = {
-  async getRequests(params?: PaginationParams & { status?: string }): Promise<{
-    requests: RoomRequest[];
-    meta: any;
-  }> {
-    const response = await api.get<ApiResponse<RoomRequest[]>>('/room-requests', { params });
-    return {
-      requests: response.data.data || [],
-      meta: response.data.meta,
-    };
+  // Get my requests (user)
+  getMyRequests: async (filters?: RequestFilters): Promise<PaginatedResponse<RoomRequest>> => {
+    const params = new URLSearchParams();
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.page_size) params.append('page_size', filters.page_size.toString());
+    if (filters?.status) params.append('status', filters.status);
+
+    const response = await api.get<PaginatedResponse<RoomRequest>>(
+      `${REQUEST_PREFIX}?${params.toString()}`
+    );
+    return response.data;
   },
 
-  async getRequest(id: number): Promise<RoomRequest> {
-    const response = await api.get<ApiResponse<RoomRequest>>(`/room-requests/${id}`);
-    return response.data.data!;
+  // Get request by ID
+  getRequestById: async (id: number): Promise<RoomRequest> => {
+    const response = await api.get<ApiResponse<RoomRequest>>(`${REQUEST_PREFIX}/${id}`);
+    return response.data.data;
   },
 
-  async createRequest(data: CreateRequestInput): Promise<RoomRequest> {
-    const response = await api.post<ApiResponse<RoomRequest>>('/room-requests', data);
-    return response.data.data!;
+  // Create request (user)
+  createRequest: async (data: CreateRequestData): Promise<RoomRequest> => {
+    const response = await api.post<ApiResponse<RoomRequest>>(REQUEST_PREFIX, data);
+    return response.data.data;
   },
 
-  async updateRequest(id: number, data: CreateRequestInput): Promise<RoomRequest> {
-    const response = await api.put<ApiResponse<RoomRequest>>(`/room-requests/${id}`, data);
-    return response.data.data!;
+  // Update request (user)
+  updateRequest: async (id: number, data: Partial<CreateRequestData>): Promise<RoomRequest> => {
+    const response = await api.put<ApiResponse<RoomRequest>>(`${REQUEST_PREFIX}/${id}`, data);
+    return response.data.data;
   },
 
-  async deleteRequest(id: number): Promise<void> {
-    await api.delete(`/room-requests/${id}`);
+  // Delete request (user)
+  deleteRequest: async (id: number): Promise<void> => {
+    await api.delete(`${REQUEST_PREFIX}/${id}`);
   },
 
-  async approveRequest(id: number, roomId: number): Promise<any> {
-    const response = await api.post<ApiResponse<any>>(`/room-requests/${id}/approve`, {
-      room_id: roomId,
-    });
-    return response.data.data!;
+  // Get available rooms for request (GA)
+  getAvailableRooms: async (requestId: number): Promise<Room[]> => {
+    const response = await api.get<ApiResponse<Room[]>>(
+      `${REQUEST_PREFIX}/${requestId}/available-rooms`
+    );
+    return response.data.data;
   },
 
-  async rejectRequest(id: number, reason: string): Promise<RoomRequest> {
-    const response = await api.post<ApiResponse<RoomRequest>>(`/room-requests/${id}/reject`, {
-      reason,
-    });
-    return response.data.data!;
+  // Approve request (GA)
+  approveRequest: async (requestId: number, data: ApproveRequestData): Promise<any> => {
+    const response = await api.post<ApiResponse<any>>(
+      `${REQUEST_PREFIX}/${requestId}/approve`,
+      data
+    );
+    return response.data.data;
   },
 
-  async getAvailableRooms(id: number): Promise<Room[]> {
-    const response = await api.get<ApiResponse<Room[]>>(`/room-requests/${id}/available-rooms`);
-    return response.data.data || [];
+  // Reject request (GA)
+  rejectRequest: async (requestId: number, data: RejectRequestData): Promise<void> => {
+    await api.post(`${REQUEST_PREFIX}/${requestId}/reject`, data);
   },
 };

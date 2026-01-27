@@ -1,139 +1,118 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
-import { useAuthStore } from './store/authStore';
-
-// Layouts
-import MainLayout from './layouts/MainLayout';
-import AuthLayout from './layouts/AuthLayout';
+import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { ProtectedRoute } from './components/common/ProtectedRoute';
+import { DashboardLayout } from './layouts/DashboardLayout';
 
 // Auth Pages
-import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
+import { LoginPage } from './pages/auth/LoginPage';
+import { RegisterPage } from './pages/auth/RegisterPage';
 
-// Main Pages
-import DashboardPage from './pages/dashboard/DashboardPage';
-import CalendarPage from './pages/calendar/CalendarPage';
-import RoomsPage from './pages/rooms/RoomsPage';
-import RequestsPage from './pages/requests/RequestsPage';
-import BookingsPage from './pages/bookings/BookingsPage';
-import UsersPage from './pages/users/UsersPage';
-import ProfilePage from './pages/profile/ProfilePage';
+// User Pages
+import { UserDashboard } from './pages/user/UserDashboard';
+import { RoomsPage } from './pages/user/RoomsPage';
+import { CreateRequestPage } from './pages/user/CreateRequestPage';
+import { MyRequestsPage } from './pages/user/MyRequestsPage';
+import { MyBookingsPage } from './pages/user/MyBookingsPage';
 
-// Components
-import { ProtectedRoute } from './components/common/ProtectedRoute';
+// GA Pages
+import { GADashboard } from './pages/ga/GADashboard';
+import { PendingRequestsPage } from './pages/ga/PendingRequestsPage';
+import { AllBookingsPage } from './pages/ga/AllBookingsPage';
+import { UsersPage as GAUsersPage } from './pages/ga/UsersPage';
+
+// Admin Pages
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { ManageRoomsPage } from './pages/admin/ManageRoomsPage';
+import { ManageUsersPage } from './pages/admin/ManageUsersPage';
+
+// Create QueryClient
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
 
 function App() {
-  const { isAuthenticated } = useAuthStore();
-
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route
-            path="/login"
-            element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : (
-                <AuthLayout>
-                  <LoginPage />
-                </AuthLayout>
-              )
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : (
-                <AuthLayout>
-                  <RegisterPage />
-                </AuthLayout>
-              )
-            }
-          />
+        <ThemeProvider>
+          <AuthProvider>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
 
-          {/* Protected Routes */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <MainLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="calendar" element={<CalendarPage />} />
-            <Route path="rooms" element={<RoomsPage />} />
-            <Route path="requests" element={<RequestsPage />} />
-            <Route path="bookings" element={<BookingsPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-            
-            {/* Admin Only */}
-            <Route
-              path="users"
-              element={
-                <ProtectedRoute allowedRoles={['room_admin', 'GA']}>
-                  <UsersPage />
-                </ProtectedRoute>
-              }
-            />
-          </Route>
+              {/* User Routes */}
+              <Route
+                path="/user/*"
+                element={
+                  <ProtectedRoute allowedRoles={['user']}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="dashboard" element={<UserDashboard />} />
+                <Route path="rooms" element={<RoomsPage />} />
+                <Route path="requests" element={<MyRequestsPage />} />
+                <Route path="requests/new" element={<CreateRequestPage />} />
+                <Route path="bookings" element={<MyBookingsPage />} />
+                <Route path="calendar" element={<div>Calendar Page - Coming in Phase 6</div>} />
+                <Route path="profile" element={<div>Profile Page - Coming Soon</div>} />
+              </Route>
 
-          {/* 404 */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+              {/* GA Routes */}
+              <Route
+                path="/ga/*"
+                element={
+                  <ProtectedRoute allowedRoles={['GA']}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="dashboard" element={<GADashboard />} />
+                <Route path="requests" element={<PendingRequestsPage />} />
+                <Route path="bookings" element={<AllBookingsPage />} />
+                <Route path="users" element={<GAUsersPage />} />
+                <Route path="calendar" element={<div>Calendar Page - Coming in Phase 6</div>} />
+                <Route path="profile" element={<div>Profile Page - Coming Soon</div>} />
+              </Route>
+
+              {/* Room Admin Routes */}
+              <Route
+                path="/admin/*"
+                element={
+                  <ProtectedRoute allowedRoles={['room_admin']}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="rooms" element={<ManageRoomsPage />} />
+                <Route path="users" element={<ManageUsersPage />} />
+                <Route path="calendar" element={<div>Calendar Page - Coming in Phase 6</div>} />
+                <Route path="profile" element={<div>Profile Page - Coming Soon</div>} />
+              </Route>
+
+              {/* Default Redirect */}
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+
+            {/* Toast Notifications */}
+            <Toaster position="top-right" richColors closeButton />
+          </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
-      <Toaster position="top-right" richColors />
-    </>
+    </QueryClientProvider>
   );
 }
 
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-// import { useState } from 'react'
-// import reactLogo from './assets/react.svg'
-// import viteLogo from '/vite.svg'
-// import './App.css'
-
-// function App() {
-//   const [count, setCount] = useState(0)
-
-//   return (
-//     <>
-//       <div>
-//         <a href="https://vite.dev" target="_blank">
-//           <img src={viteLogo} className="logo" alt="Vite logo" />
-//         </a>
-//         <a href="https://react.dev" target="_blank">
-//           <img src={reactLogo} className="logo react" alt="React logo" />
-//         </a>
-//       </div>
-//       <h1>Vite + React</h1>
-//       <div className="card">
-//         <button onClick={() => setCount((count) => count + 1)}>
-//           count is {count}
-//         </button>
-//         <p>
-//           Edit <code>src/App.tsx</code> and save to test HMR
-//         </p>
-//       </div>
-//       <p className="read-the-docs">
-//         Click on the Vite and React logos to learn more
-//       </p>
-//     </>
-//   )
-// }
-
-// export default App

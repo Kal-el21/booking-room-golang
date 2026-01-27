@@ -1,46 +1,70 @@
-import api from '../lib/api';
-import type { Room, CreateRoomRequest, UpdateRoomRequest } from '../types/room.types';
-import type { ApiResponse, PaginationParams } from '../types/api.types';
+import api from './api';
+import type { Room, ApiResponse, PaginatedResponse } from '@/types';
+
+const ROOM_PREFIX = '/api/v1/rooms';
+
+export interface RoomFilters {
+  page?: number;
+  page_size?: number;
+  status?: 'available' | 'occupied' | 'maintenance';
+  min_capacity?: number;
+  location?: string;
+}
+
+export interface CheckAvailabilityRequest {
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+}
 
 export const roomService = {
-  async getRooms(params?: PaginationParams & { status?: string; location?: string }): Promise<{
-    rooms: Room[];
-    meta: any;
-  }> {
-    const response = await api.get<ApiResponse<Room[]>>('/rooms', { params });
-    return {
-      rooms: response.data.data || [],
-      meta: response.data.meta,
-    };
+  // Get all rooms (public)
+  getRooms: async (filters?: RoomFilters): Promise<PaginatedResponse<Room>> => {
+    const params = new URLSearchParams();
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.page_size) params.append('page_size', filters.page_size.toString());
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.min_capacity) params.append('min_capacity', filters.min_capacity.toString());
+    if (filters?.location) params.append('location', filters.location);
+
+    const response = await api.get<PaginatedResponse<Room>>(
+      `${ROOM_PREFIX}?${params.toString()}`
+    );
+    return response.data;
   },
 
-  async getRoom(id: number): Promise<Room> {
-    const response = await api.get<ApiResponse<Room>>(`/rooms/${id}`);
-    return response.data.data!;
+  // Get room by ID
+  getRoomById: async (id: number): Promise<Room> => {
+    const response = await api.get<ApiResponse<Room>>(`${ROOM_PREFIX}/${id}`);
+    return response.data.data;
   },
 
-  async createRoom(data: CreateRoomRequest): Promise<Room> {
-    const response = await api.post<ApiResponse<Room>>('/rooms', data);
-    return response.data.data!;
-  },
-
-  async updateRoom(id: number, data: UpdateRoomRequest): Promise<Room> {
-    const response = await api.put<ApiResponse<Room>>(`/rooms/${id}`, data);
-    return response.data.data!;
-  },
-
-  async deleteRoom(id: number): Promise<void> {
-    await api.delete(`/rooms/${id}`);
-  },
-
-  async checkAvailability(
-    id: number,
-    data: { booking_date: string; start_time: string; end_time: string }
-  ): Promise<boolean> {
+  // Check room availability (public)
+  checkAvailability: async (
+    roomId: number,
+    data: CheckAvailabilityRequest
+  ): Promise<boolean> => {
     const response = await api.post<ApiResponse<{ available: boolean }>>(
-      `/rooms/${id}/availability`,
+      `${ROOM_PREFIX}/${roomId}/availability`,
       data
     );
-    return response.data.data!.available;
+    return response.data.data.available;
+  },
+
+  // Create room (room_admin only)
+  createRoom: async (data: Partial<Room>): Promise<Room> => {
+    const response = await api.post<ApiResponse<Room>>(ROOM_PREFIX, data);
+    return response.data.data;
+  },
+
+  // Update room (room_admin only)
+  updateRoom: async (id: number, data: Partial<Room>): Promise<Room> => {
+    const response = await api.put<ApiResponse<Room>>(`${ROOM_PREFIX}/${id}`, data);
+    return response.data.data;
+  },
+
+  // Delete room (room_admin only)
+  deleteRoom: async (id: number): Promise<void> => {
+    await api.delete(`${ROOM_PREFIX}/${id}`);
   },
 };

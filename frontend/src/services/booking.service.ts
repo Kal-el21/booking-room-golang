@@ -1,35 +1,40 @@
+import api from './api';
+import type { Booking, ApiResponse, PaginatedResponse } from '@/types';
 
-import type { ApiResponse, PaginationParams } from '@/types/api.types';
-import type { RoomBooking } from '../types/booking.types';
-import { api } from '@/lib/api';
+const BOOKING_PREFIX = '/api/v1/bookings';
+
+export interface BookingFilters {
+  page?: number;
+  page_size?: number;
+  room_id?: number;
+  status?: 'confirmed' | 'cancelled' | 'completed';
+  booking_date?: string;
+}
 
 export const bookingService = {
-  async getBookings(params?: PaginationParams): Promise<{
-    bookings: RoomBooking[];
-    meta: any;
-  }> {
-    const response = await api.get<ApiResponse<RoomBooking[]>>('/bookings', { params });
-    return {
-      bookings: response.data.data || [],
-      meta: response.data.meta,
-    };
+  // Get my bookings (user)
+  getMyBookings: async (filters?: BookingFilters): Promise<PaginatedResponse<Booking>> => {
+    const params = new URLSearchParams();
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.page_size) params.append('page_size', filters.page_size.toString());
+    if (filters?.room_id) params.append('room_id', filters.room_id.toString());
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.booking_date) params.append('booking_date', filters.booking_date);
+
+    const response = await api.get<PaginatedResponse<Booking>>(
+      `${BOOKING_PREFIX}?${params.toString()}`
+    );
+    return response.data;
   },
 
-  async getBooking(id: number): Promise<RoomBooking> {
-    const response = await api.get<ApiResponse<RoomBooking>>(`/bookings/${id}`);
-    return response.data.data!;
+  // Get booking by ID
+  getBookingById: async (id: number): Promise<Booking> => {
+    const response = await api.get<ApiResponse<Booking>>(`${BOOKING_PREFIX}/${id}`);
+    return response.data.data;
   },
 
-  async cancelBooking(id: number): Promise<void> {
-    await api.delete(`/bookings/${id}`);
-  },
-
-  async getCalendar(startDate: string, endDate: string, roomId?: number): Promise<RoomBooking[]> {
-    const params: any = { start_date: startDate, end_date: endDate };
-    if (roomId) {
-      params.room_id = roomId;
-    }
-    const response = await api.get<ApiResponse<RoomBooking[]>>('/calendar', { params });
-    return response.data.data || [];
+  // Cancel booking (GA only)
+  cancelBooking: async (id: number): Promise<void> => {
+    await api.delete(`${BOOKING_PREFIX}/${id}`);
   },
 };

@@ -1,52 +1,79 @@
+import api from './api';
+import type { User, ApiResponse, PaginatedResponse } from '@/types';
 
-import type { ApiResponse, PaginationParams } from '@/types/api.types';
-import type { UpdateUserRequest, ChangePasswordRequest, UserPreference } from '../types/user.types';
-import { api } from '@/lib/api';
-import type { User } from '@/types/auth.types';
+const USER_PREFIX = '/api/v1/users';
+
+export interface UserFilters {
+  page?: number;
+  page_size?: number;
+  role?: string;
+  is_active?: boolean;
+}
+
+export interface ChangePasswordData {
+  current_password: string;
+  new_password: string;
+}
+
+export interface UpdatePreferencesData {
+  notification_24h?: boolean;
+  notification_3h?: boolean;
+  notification_30m?: boolean;
+  email_notifications?: boolean;
+}
 
 export const userService = {
-  async getUsers(params?: PaginationParams): Promise<{
-    users: User[];
-    meta: any;
-  }> {
-    const response = await api.get<ApiResponse<User[]>>('/users', { params });
-    return {
-      users: response.data.data || [],
-      meta: response.data.meta,
-    };
+  // Get my profile
+  getMyProfile: async (): Promise<User> => {
+    const response = await api.get<ApiResponse<User>>(`${USER_PREFIX}/me`);
+    return response.data.data;
   },
 
-  async getUser(id: number): Promise<User> {
-    const response = await api.get<ApiResponse<User>>(`/users/${id}`);
-    return response.data.data!;
+  // Change password
+  changePassword: async (data: ChangePasswordData): Promise<void> => {
+    await api.put(`${USER_PREFIX}/change-password`, data);
   },
 
-  async getCurrentUser(): Promise<{ user: User; preferences: UserPreference }> {
-    const response = await api.get<ApiResponse<{ user: User; preferences: UserPreference }>>(
-      '/users/me'
+  // Update preferences
+  updatePreferences: async (data: UpdatePreferencesData): Promise<void> => {
+    await api.put(`${USER_PREFIX}/preferences`, data);
+  },
+
+  // Get all users (room_admin, GA)
+  getUsers: async (filters?: UserFilters): Promise<PaginatedResponse<User>> => {
+    const params = new URLSearchParams();
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.page_size) params.append('page_size', filters.page_size.toString());
+    if (filters?.role) params.append('role', filters.role);
+    if (filters?.is_active !== undefined) params.append('is_active', filters.is_active.toString());
+
+    const response = await api.get<PaginatedResponse<User>>(
+      `${USER_PREFIX}?${params.toString()}`
     );
-    return response.data.data!;
+    return response.data;
   },
 
-  async updateUser(id: number, data: UpdateUserRequest): Promise<User> {
-    const response = await api.put<ApiResponse<User>>(`/users/${id}`, data);
-    return response.data.data!;
+  // Get user by ID (room_admin, GA)
+  getUserById: async (id: number): Promise<User> => {
+    const response = await api.get<ApiResponse<User>>(`${USER_PREFIX}/${id}`);
+    return response.data.data;
   },
 
-  async deleteUser(id: number): Promise<void> {
-    await api.delete(`/users/${id}`);
+  // Update user (room_admin)
+  updateUser: async (id: number, data: Partial<User>): Promise<User> => {
+    const response = await api.put<ApiResponse<User>>(`${USER_PREFIX}/${id}`, data);
+    return response.data.data;
   },
 
-  async changePassword(data: ChangePasswordRequest): Promise<void> {
-    await api.put('/users/change-password', data);
+  // Reset user password (room_admin)
+  resetUserPassword: async (id: number, newPassword: string): Promise<void> => {
+    await api.post(`${USER_PREFIX}/${id}/reset-password`, {
+      new_password: newPassword,
+    });
   },
 
-  async resetPassword(id: number, newPassword: string): Promise<void> {
-    await api.post(`/users/${id}/reset-password`, { new_password: newPassword });
-  },
-
-  async updatePreferences(data: Partial<UserPreference>): Promise<UserPreference> {
-    const response = await api.put<ApiResponse<UserPreference>>('/users/preferences', data);
-    return response.data.data!;
+  // Delete user (room_admin)
+  deleteUser: async (id: number): Promise<void> => {
+    await api.delete(`${USER_PREFIX}/${id}`);
   },
 };
