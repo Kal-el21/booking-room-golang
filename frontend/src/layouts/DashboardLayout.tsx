@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { useUnreadCount } from '@/hooks/useNotifications';
+import { NotificationDropdown } from '@/components/common/NotificationDropdown';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -43,9 +43,6 @@ export const DashboardLayout = () => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
-  // Fetch unread notification count
-  const { data: unreadCount } = useUnreadCount();
 
   // Get navigation items based on role
   const getNavItems = (): NavItem[] => {
@@ -235,14 +232,7 @@ export const DashboardLayout = () => {
 
               <div className="flex items-center gap-2">
                 {/* Notifications */}
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                  {unreadCount !== undefined && unreadCount > 0 && (
-                    <span className="absolute top-1 right-1 h-5 w-5 bg-destructive text-destructive-foreground rounded-full text-xs flex items-center justify-center font-medium">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </Button>
+                <NotificationDropdown />
 
                 {/* Theme Toggle - Desktop */}
                 <Button variant="ghost" size="icon" onClick={toggleTheme} className="hidden lg:flex">

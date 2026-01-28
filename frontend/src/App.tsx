@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { DashboardLayout } from './layouts/DashboardLayout';
 
@@ -28,6 +29,9 @@ import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { ManageRoomsPage } from './pages/admin/ManageRoomsPage';
 import { ManageUsersPage } from './pages/admin/ManageUsersPage';
 
+// Shared Pages
+import { CalendarPage } from './pages/CalendarPage';
+
 // Create QueryClient
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,7 +49,8 @@ function App() {
       <BrowserRouter>
         <ThemeProvider>
           <AuthProvider>
-            <Routes>
+            <NotificationProvider>
+              <Routes>
               {/* Public Routes */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
@@ -64,7 +69,7 @@ function App() {
                 <Route path="requests" element={<MyRequestsPage />} />
                 <Route path="requests/new" element={<CreateRequestPage />} />
                 <Route path="bookings" element={<MyBookingsPage />} />
-                <Route path="calendar" element={<div>Calendar Page - Coming in Phase 6</div>} />
+                <Route path="calendar" element={<CalendarPage />} />
                 <Route path="profile" element={<div>Profile Page - Coming Soon</div>} />
               </Route>
 
@@ -81,7 +86,7 @@ function App() {
                 <Route path="requests" element={<PendingRequestsPage />} />
                 <Route path="bookings" element={<AllBookingsPage />} />
                 <Route path="users" element={<GAUsersPage />} />
-                <Route path="calendar" element={<div>Calendar Page - Coming in Phase 6</div>} />
+                <Route path="calendar" element={<CalendarPage />} />
                 <Route path="profile" element={<div>Profile Page - Coming Soon</div>} />
               </Route>
 
@@ -97,7 +102,7 @@ function App() {
                 <Route path="dashboard" element={<AdminDashboard />} />
                 <Route path="rooms" element={<ManageRoomsPage />} />
                 <Route path="users" element={<ManageUsersPage />} />
-                <Route path="calendar" element={<div>Calendar Page - Coming in Phase 6</div>} />
+                <Route path="calendar" element={<CalendarPage />} />
                 <Route path="profile" element={<div>Profile Page - Coming Soon</div>} />
               </Route>
 
@@ -108,6 +113,7 @@ function App() {
 
             {/* Toast Notifications */}
             <Toaster position="top-right" richColors closeButton />
+            </NotificationProvider>
           </AuthProvider>
         </ThemeProvider>
       </BrowserRouter>
