@@ -14,19 +14,21 @@ import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns
 import { Calendar as CalendarIcon, DoorOpen, User, Clock, FileText } from 'lucide-react';
 
 export const CalendarPage = () => {
-  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
-
-  // Calculate date range for current month view
-  const startDate = format(startOfMonth(currentDate), 'yyyy-MM-dd');
-  const endDate = format(endOfMonth(currentDate), 'yyyy-MM-dd');
+  const [dateRange, setDateRange] = useState(() => {
+    const now = new Date();
+    return {
+      start: format(startOfMonth(now), 'yyyy-MM-dd'),
+      end: format(endOfMonth(now), 'yyyy-MM-dd'),
+    };
+  });
 
   // Fetch calendar events
   const { data: events, isLoading: eventsLoading } = useCalendar({
-    start_date: startDate,
-    end_date: endDate,
+    start_date: dateRange.start,
+    end_date: dateRange.end,
     room_id: selectedRoomId !== 'all' ? parseInt(selectedRoomId) : undefined,
   });
 
@@ -41,27 +43,27 @@ export const CalendarPage = () => {
     if (!events) return [];
 
     return events.map((event) => {
-      let backgroundColor = '#3b82f6'; // Blue - default
-      let borderColor = '#3b82f6';
+      let backgroundColor = '#2563eb'; // Blue - darker for better visibility
+      let borderColor = '#2563eb';
       let textColor = '#ffffff';
 
-      // Color coding based on status
+      // Color coding based on status - darker colors for better contrast
       if (event.type === 'request') {
-        // Pending requests - Yellow
-        backgroundColor = '#eab308';
-        borderColor = '#eab308';
+        // Pending requests - Amber
+        backgroundColor = '#d97706';
+        borderColor = '#d97706';
       } else if (event.status === 'confirmed') {
         // Confirmed bookings - Blue
-        backgroundColor = '#3b82f6';
-        borderColor = '#3b82f6';
+        backgroundColor = '#2563eb';
+        borderColor = '#2563eb';
       } else if (event.status === 'cancelled') {
         // Cancelled - Red
-        backgroundColor = '#ef4444';
-        borderColor = '#ef4444';
+        backgroundColor = '#dc2626';
+        borderColor = '#dc2626';
       } else if (event.status === 'completed') {
         // Completed - Gray
-        backgroundColor = '#6b7280';
-        borderColor = '#6b7280';
+        backgroundColor = '#4b5563';
+        borderColor = '#4b5563';
       }
 
       return {
@@ -85,7 +87,13 @@ export const CalendarPage = () => {
   };
 
   const handleDatesSet = (dateInfo: any) => {
-    setCurrentDate(dateInfo.view.currentStart);
+    const newStart = format(dateInfo.start, 'yyyy-MM-dd');
+    const newEnd = format(dateInfo.end, 'yyyy-MM-dd');
+    
+    // Only update if dates actually changed
+    if (newStart !== dateRange.start || newEnd !== dateRange.end) {
+      setDateRange({ start: newStart, end: newEnd });
+    }
   };
 
   const getStatusBadge = (status: string, type: string) => {
@@ -150,19 +158,19 @@ export const CalendarPage = () => {
               <label className="text-sm font-medium">Legend</label>
               <div className="flex flex-wrap gap-2">
                 <div className="flex items-center gap-2 text-sm">
-                  <div className="w-4 h-4 rounded bg-blue-500" />
+                  <div className="w-4 h-4 rounded bg-blue-600" />
                   <span>Confirmed</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                  <div className="w-4 h-4 rounded bg-yellow-500" />
+                  <div className="w-4 h-4 rounded bg-amber-600" />
                   <span>Pending</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                  <div className="w-4 h-4 rounded bg-red-500" />
+                  <div className="w-4 h-4 rounded bg-red-600" />
                   <span>Cancelled</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                  <div className="w-4 h-4 rounded bg-gray-500" />
+                  <div className="w-4 h-4 rounded bg-gray-600" />
                   <span>Completed</span>
                 </div>
               </div>

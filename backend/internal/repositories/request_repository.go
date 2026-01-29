@@ -27,8 +27,8 @@ func (r *RequestRepository) FindByID(id uint) (*models.RoomRequest, error) {
 	err := r.db.
 		Preload("User").
 		Preload("Assigner").
-		Preload("Booking").
-		Preload("Booking.Room").
+		Preload("Bookings.Room").         // Load bookings with room info
+		Preload("Bookings.BookedByUser"). // Load who booked it
 		First(&request, id).Error
 	return &request, err
 }
@@ -115,14 +115,17 @@ func (r *BookingRepository) FindByID(id uint) (*models.RoomBooking, error) {
 	return &booking, err
 }
 
-// FindByRequestID finds booking by request ID
-func (r *BookingRepository) FindByRequestID(requestID uint) (*models.RoomBooking, error) {
-	var booking models.RoomBooking
+// FindByRequestID finds all bookings by request ID (for multi-day/recurring)
+func (r *BookingRepository) FindByRequestID(requestID uint) ([]models.RoomBooking, error) {
+	var bookings []models.RoomBooking
 	err := r.db.
 		Where("request_id = ?", requestID).
 		Preload("Room").
-		First(&booking).Error
-	return &booking, err
+		Preload("Request").
+		Preload("Request.User").
+		Order("booking_date ASC").
+		Find(&bookings).Error
+	return bookings, err
 }
 
 // Update updates booking

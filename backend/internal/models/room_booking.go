@@ -16,7 +16,7 @@ const (
 
 type RoomBooking struct {
 	ID          uint           `gorm:"primaryKey;autoIncrement" json:"id"`
-	RequestID   uint           `gorm:"unique;not null" json:"request_id"` // 1-to-1 with request
+	RequestID   uint           `gorm:"not null;index" json:"request_id"` // Changed from unique to index (multiple bookings per request)
 	RoomID      uint           `gorm:"not null;index" json:"room_id"`
 	BookedBy    uint           `gorm:"not null" json:"booked_by"` // GA who created the booking
 	BookingDate time.Time      `gorm:"type:date;not null;index" json:"booking_date"`

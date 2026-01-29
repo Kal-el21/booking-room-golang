@@ -13,6 +13,11 @@ import (
 func Migrate(db *gorm.DB) error {
 	log.Println("🔄 Running database migrations...")
 
+	// Drop unique constraint on request_id before migration
+	// This allows multiple bookings per request (for multi-day and recurring)
+	db.Exec("ALTER TABLE room_bookings DROP CONSTRAINT IF EXISTS room_bookings_request_id_key")
+	db.Exec("ALTER TABLE room_bookings DROP CONSTRAINT IF EXISTS uni_room_bookings_request_id")
+
 	// Auto migrate all models
 	err := db.AutoMigrate(
 		&models.User{},

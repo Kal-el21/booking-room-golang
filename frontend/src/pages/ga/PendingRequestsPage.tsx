@@ -19,6 +19,13 @@ export const PendingRequestsPage = () => {
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [rejectReason, setRejectReason] = useState('');
 
+  // Fetch all requests for stats (unfiltered)
+  const { data: allRequestsData } = useRequests({
+    page: 1,
+    page_size: 1000,
+  });
+
+  // Fetch filtered requests for display
   const { data: requestsData, isLoading } = useRequests({
     page: 1,
     page_size: 100,
@@ -97,6 +104,7 @@ export const PendingRequestsPage = () => {
   }
 
   const requests = requestsData?.data || [];
+  const allRequests = allRequestsData?.data || [];
 
   return (
     <div className="space-y-6">
@@ -131,7 +139,7 @@ export const PendingRequestsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {requests.filter((r) => r.status === 'pending').length}
+              {allRequests.filter((r) => r.status === 'pending').length}
             </div>
           </CardContent>
         </Card>
@@ -143,7 +151,7 @@ export const PendingRequestsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {requests.filter((r) => r.status === 'approved').length}
+              {allRequests.filter((r) => r.status === 'approved').length}
             </div>
           </CardContent>
         </Card>
@@ -155,7 +163,7 @@ export const PendingRequestsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {requests.filter((r) => r.status === 'rejected').length}
+              {allRequests.filter((r) => r.status === 'rejected').length}
             </div>
           </CardContent>
         </Card>
@@ -166,7 +174,7 @@ export const PendingRequestsPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{requests.length}</div>
+            <div className="text-2xl font-bold">{allRequests.length}</div>
           </CardContent>
         </Card>
       </div>

@@ -16,6 +16,13 @@ export const AllBookingsPage = () => {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
 
+  // Fetch all bookings for stats (unfiltered)
+  const { data: allBookingsData } = useBookings({
+    page: 1,
+    page_size: 1000,
+  });
+
+  // Fetch filtered bookings for display
   const { data: bookingsData, isLoading } = useBookings({
     page: 1,
     page_size: 100,
@@ -67,6 +74,8 @@ export const AllBookingsPage = () => {
   }
 
   const bookings = bookingsData?.data || [];
+  const allBookings = allBookingsData?.data || [];
+  
   const filteredBookings = bookings.filter((booking) =>
     booking.room_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -126,7 +135,7 @@ export const AllBookingsPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{bookings.length}</div>
+            <div className="text-2xl font-bold">{allBookings.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -137,7 +146,7 @@ export const AllBookingsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {bookings.filter((b) => b.status === 'confirmed').length}
+              {allBookings.filter((b) => b.status === 'confirmed').length}
             </div>
           </CardContent>
         </Card>
@@ -149,7 +158,7 @@ export const AllBookingsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {bookings.filter((b) => b.status === 'cancelled').length}
+              {allBookings.filter((b) => b.status === 'cancelled').length}
             </div>
           </CardContent>
         </Card>
@@ -161,7 +170,7 @@ export const AllBookingsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {bookings.filter((b) => b.status === 'completed').length}
+              {allBookings.filter((b) => b.status === 'completed').length}
             </div>
           </CardContent>
         </Card>
