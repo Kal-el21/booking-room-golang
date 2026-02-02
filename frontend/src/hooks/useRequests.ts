@@ -6,6 +6,7 @@ export const useRequests = (filters?: RequestFilters) => {
   return useQuery({
     queryKey: ['requests', filters],
     queryFn: () => requestService.getMyRequests(filters),
+    retry: 1,
   });
 };
 
@@ -26,8 +27,9 @@ export const useCreateRequest = () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       toast.success('Room request submitted successfully');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to submit request');
+    onError: (error: unknown) => {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || 'Failed to submit request');
     },
   });
 };
@@ -42,8 +44,9 @@ export const useUpdateRequest = () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       toast.success('Request updated successfully');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to update request');
+    onError: (error: unknown) => {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || 'Failed to update request');
     },
   });
 };
@@ -57,8 +60,9 @@ export const useDeleteRequest = () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       toast.success('Request deleted successfully');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to delete request');
+    onError: (error: unknown) => {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || 'Failed to delete request');
     },
   });
 };
@@ -82,8 +86,9 @@ export const useApproveRequest = () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       toast.success('Request approved successfully');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to approve request');
+    onError: (error: unknown) => {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || 'Failed to approve request');
     },
   });
 };
@@ -98,8 +103,9 @@ export const useRejectRequest = () => {
       queryClient.invalidateQueries({ queryKey: ['requests'] });
       toast.success('Request rejected');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to reject request');
+    onError: (error: unknown) => {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || 'Failed to reject request');
     },
   });
 };

@@ -12,6 +12,7 @@ type BookingService struct {
 	bookingRepo      *repositories.BookingRepository
 	requestRepo      *repositories.RequestRepository
 	notificationRepo *repositories.NotificationRepository
+	notificationSvc  *NotificationService
 }
 
 func NewBookingService(
@@ -23,6 +24,7 @@ func NewBookingService(
 		bookingRepo:      bookingRepo,
 		requestRepo:      requestRepo,
 		notificationRepo: notificationRepo,
+		notificationSvc:  NewNotificationService(notificationRepo),
 	}
 }
 
@@ -127,7 +129,7 @@ func (s *BookingService) GetCalendar(startDate, endDate string, roomID *uint) ([
 	return s.bookingRepo.GetCalendarBookings(start, end, roomID)
 }
 
-// notifyBookingCancelled sends cancellation notification
+// notifyBookingCancelled sends cancellation notification (broadcasts to SSE)
 func (s *BookingService) notifyBookingCancelled(booking *models.RoomBooking) {
 	notification := &models.Notification{
 		UserID:    booking.Request.UserID,
@@ -137,5 +139,5 @@ func (s *BookingService) notifyBookingCancelled(booking *models.RoomBooking) {
 		Type:      models.NotifBookingCancelled,
 		Channel:   models.ChannelBoth,
 	}
-	s.notificationRepo.Create(notification)
+	s.notificationSvc.CreateNotification(notification) // Broadcasts to SSE
 }

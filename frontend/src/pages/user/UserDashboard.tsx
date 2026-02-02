@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatCard } from '@/components/common/StatCard';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { CalendarDays, DoorOpen, FileText, Clock } from 'lucide-react';
 import { useBookings } from '@/hooks/useBookings';
 import { useRequests } from '@/hooks/useRequests';
@@ -8,6 +9,14 @@ import { format, isAfter, parseISO, startOfDay } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 
 export const UserDashboard = () => {
+  return (
+    <ErrorBoundary>
+      <DashboardContent />
+    </ErrorBoundary>
+  );
+};
+
+const DashboardContent = () => {
   // Fetch data
   const { data: bookingsData, isLoading: bookingsLoading } = useBookings({
     page: 1,
@@ -26,31 +35,31 @@ export const UserDashboard = () => {
   });
 
   // Calculate stats
-  const activeBookings = bookingsData?.data.filter(
+  const activeBookings = (bookingsData?.data || []).filter(
     (b) => b.status === 'confirmed'
   ).length || 0;
 
-  const pendingRequests = requestsData?.data.filter(
+  const pendingRequests = (requestsData?.data || []).filter(
     (r) => r.status === 'pending'
   ).length || 0;
 
-  const availableRooms = roomsData?.data.length || 0;
+  const availableRooms = (roomsData?.data || []).length || 0;
 
   // Get upcoming bookings (next 7 days)
   const today = startOfDay(new Date());
-  const upcomingBookings = bookingsData?.data.filter((b) => {
-    if (b.status !== 'confirmed') return false;
+  const upcomingBookings = (bookingsData?.data || []).filter((b) => {
+    if (b.status !== 'confirmed' || !b.booking_date) return false;
     const bookingDate = parseISO(b.booking_date);
     return isAfter(bookingDate, today);
   }).length || 0;
 
   // Get recent bookings for table
-  const recentBookings = bookingsData?.data
+  const recentBookings = (bookingsData?.data || [])
     .filter((b) => b.status === 'confirmed')
-    .slice(0, 5) || [];
+    .slice(0, 5);
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, any> = {
+    const variants: Record<string, 'default' | 'destructive' | 'secondary' | 'outline'> = {
       confirmed: 'default',
       cancelled: 'destructive',
       completed: 'secondary',
@@ -123,7 +132,7 @@ export const UserDashboard = () => {
                       <p className="font-medium">{booking.room_name || `Room #${booking.room_id}`}</p>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span>{format(parseISO(booking.booking_date), 'MMM dd, yyyy')}</span>
+                      <span>{booking.booking_date ? format(parseISO(booking.booking_date), 'MMM dd, yyyy') : 'N/A'}</span>
                       <span>
                         {booking.start_time} - {booking.end_time}
                       </span>
@@ -173,3 +182,5 @@ export const UserDashboard = () => {
     </div>
   );
 };
+
+export default UserDashboard;

@@ -18,6 +18,7 @@ type RequestService struct {
 	bookingRepo      *repositories.BookingRepository
 	roomRepo         *repositories.RoomRepository
 	notificationRepo *repositories.NotificationRepository
+	notificationSvc  *NotificationService
 	userRepo         *repositories.UserRepository
 	db               *gorm.DB
 }
@@ -35,6 +36,7 @@ func NewRequestService(
 		bookingRepo:      bookingRepo,
 		roomRepo:         roomRepo,
 		notificationRepo: notificationRepo,
+		notificationSvc:  NewNotificationService(notificationRepo),
 		userRepo:         userRepo,
 		db:               db,
 	}
@@ -526,7 +528,7 @@ func (s *RequestService) GetAvailableRoomsForRequest(requestID uint) ([]models.R
 	)
 }
 
-// Notification helpers (will be implemented in notification service)
+// Notification helpers (broadcasts to SSE automatically)
 func (s *RequestService) notifyGANewRequest(request *models.RoomRequest) {
 	// Get all GA users
 	gaUsers, _, _ := s.userRepo.List(1, 100)
@@ -540,7 +542,7 @@ func (s *RequestService) notifyGANewRequest(request *models.RoomRequest) {
 				Type:    models.NotifNewRequest,
 				Channel: models.ChannelInApp,
 			}
-			s.notificationRepo.Create(notification)
+			s.notificationSvc.CreateNotification(notification) // Broadcasts to SSE
 		}
 	}
 }
@@ -554,7 +556,7 @@ func (s *RequestService) notifyUserRequestApproved(request *models.RoomRequest, 
 		Type:      models.NotifBookingConfirmed,
 		Channel:   models.ChannelBoth,
 	}
-	s.notificationRepo.Create(notification)
+	s.notificationSvc.CreateNotification(notification) // Broadcasts to SSE
 }
 
 func (s *RequestService) notifyUserRequestRejected(request *models.RoomRequest) {
@@ -565,7 +567,7 @@ func (s *RequestService) notifyUserRequestRejected(request *models.RoomRequest) 
 		Type:    models.NotifBookingRejected,
 		Channel: models.ChannelBoth,
 	}
-	s.notificationRepo.Create(notification)
+	s.notificationSvc.CreateNotification(notification) // Broadcasts to SSE
 }
 
 func (s *RequestService) createNotificationSchedules(booking *models.RoomBooking) {

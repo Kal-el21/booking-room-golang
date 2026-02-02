@@ -1,95 +1,114 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
+export type SSEMessageHandler = (data: any) => void;
+export type SSEErrorHandler = (error: Event) => void;
+
 export class SSEService {
   private eventSource: EventSource | null = null;
+  private messageHandlers: Map<string, SSEMessageHandler[]> = new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private reconnectDelay = 3000;
+  private reconnectDelay = 1000; // Start with 1 second
 
-  connect(
-    onMessage: (data: any) => void,
-    onError?: (error: any) => void,
-    onOpen?: () => void
-  ) {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      console.error('No access token found');
-      return;
-    }
-
-    // Close existing connection
+  connect(token: string) {
+    // Close existing connection if any
     this.disconnect();
 
-    // Create SSE connection with token in URL
-    const url = `${API_BASE_URL}/api/v1/notifications/stream?token=${token}`;
-    this.eventSource = new EventSource(url);
+    try {
+      // Create EventSource with token in query param
+      const url = `${API_BASE_URL}/api/v1/notifications/stream?token=${token}`;
+      this.eventSource = new EventSource(url);
 
-    this.eventSource.onopen = () => {
-      console.log('✅ SSE Connection established');
-      this.reconnectAttempts = 0;
-      if (onOpen) onOpen();
-    };
+      // Handle connection open
+      this.eventSource.onopen = () => {
+        console.log('SSE: Connection established');
+        this.reconnectAttempts = 0;
+        this.reconnectDelay = 1000;
+      };
 
-    this.eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('📨 Received notification:', data);
-        onMessage(data);
-      } catch (error) {
-        console.error('Failed to parse SSE message:', error);
-      }
-    };
+      // Handle notification events
+      this.eventSource.addEventListener('notification', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          this.emit('notification', data);
+        } catch (error) {
+          console.error('SSE: Failed to parse notification:', error);
+        }
+      });
 
-    this.eventSource.onerror = (error) => {
-      console.error('❌ SSE Connection error:', error);
-      
-      if (this.eventSource?.readyState === EventSource.CLOSED) {
-        console.log('Connection closed, attempting to reconnect...');
-        this.handleReconnect(onMessage, onError, onOpen);
-      }
+      // Handle ping events (keep-alive)
+      this.eventSource.addEventListener('ping', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('SSE: Received ping at', new Date(data.timestamp * 1000));
+        } catch (error) {
+          console.error('SSE: Failed to parse ping:', error);
+        }
+      });
 
-      if (onError) onError(error);
-    };
+      // Handle errors
+      this.eventSource.onerror = (error) => {
+        console.error('SSE: Connection error', error);
+        
+        if (this.eventSource?.readyState === EventSource.CLOSED) {
+          console.log('SSE: Connection closed, attempting to reconnect...');
+          this.handleReconnect(token);
+        }
+      };
 
-    // Listen for specific event types
-    this.eventSource.addEventListener('notification', (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('🔔 New notification event:', data);
-        onMessage(data);
-      } catch (error) {
-        console.error('Failed to parse notification event:', error);
-      }
-    });
-
-    this.eventSource.addEventListener('ping', () => {
-      console.log('💓 Ping received');
-    });
+    } catch (error) {
+      console.error('SSE: Failed to create connection:', error);
+      this.handleReconnect(token);
+    }
   }
 
-  private handleReconnect(
-    onMessage: (data: any) => void,
-    onError?: (error: any) => void,
-    onOpen?: () => void
-  ) {
+  private handleReconnect(token: string) {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      console.error('SSE: Max reconnection attempts reached');
+      this.emit('connection-failed', { attempts: this.reconnectAttempts });
       return;
     }
 
     this.reconnectAttempts++;
-    console.log(`Reconnecting... Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+    console.log(`SSE: Reconnecting (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
 
     setTimeout(() => {
-      this.connect(onMessage, onError, onOpen);
-    }, this.reconnectDelay * this.reconnectAttempts);
+      this.connect(token);
+    }, this.reconnectDelay);
+
+    // Exponential backoff
+    this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000); // Max 30 seconds
   }
 
   disconnect() {
     if (this.eventSource) {
-      console.log('🔌 Disconnecting SSE');
       this.eventSource.close();
       this.eventSource = null;
+      console.log('SSE: Connection closed');
+    }
+  }
+
+  on(event: string, handler: SSEMessageHandler) {
+    if (!this.messageHandlers.has(event)) {
+      this.messageHandlers.set(event, []);
+    }
+    this.messageHandlers.get(event)?.push(handler);
+  }
+
+  off(event: string, handler: SSEMessageHandler) {
+    const handlers = this.messageHandlers.get(event);
+    if (handlers) {
+      const index = handlers.indexOf(handler);
+      if (index > -1) {
+        handlers.splice(index, 1);
+      }
+    }
+  }
+
+  private emit(event: string, data: any) {
+    const handlers = this.messageHandlers.get(event);
+    if (handlers) {
+      handlers.forEach((handler) => handler(data));
     }
   }
 
@@ -102,4 +121,12 @@ export class SSEService {
   }
 }
 
-export const sseService = new SSEService();
+// Singleton instance
+let sseServiceInstance: SSEService | null = null;
+
+export const getSSEService = (): SSEService => {
+  if (!sseServiceInstance) {
+    sseServiceInstance = new SSEService();
+  }
+  return sseServiceInstance;
+};

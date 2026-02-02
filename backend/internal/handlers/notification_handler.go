@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/middleware"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/services"
@@ -15,12 +16,72 @@ type NotificationHandler struct {
 }
 
 func NewNotificationHandler(notificationService *services.NotificationService) *NotificationHandler {
-	/*************  ✨ Windsurf Command ⭐  *************/
-	// NewNotificationHandler returns a new instance of NotificationHandler with the given notificationService.
-	// It is used to create a new handler for the notification API endpoints.
-	/*******  21c55d6a-d7dd-469a-a434-2a1b7d94bac6  *******/
 	return &NotificationHandler{
 		notificationService: notificationService,
+	}
+}
+
+// StreamNotifications handles SSE connection for real-time notifications
+// @route GET /api/v1/notifications/stream?token=<jwt_token>
+func (h *NotificationHandler) StreamNotifications(c *gin.Context) {
+	// Get token from query param
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(401, gin.H{"error": "token required in query parameter"})
+		return
+	}
+
+	// Validate token
+	claims, err := utils.ValidateToken(token)
+	if err != nil {
+		c.JSON(401, gin.H{"error": "invalid or expired token"})
+		return
+	}
+
+	// Set SSE headers
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no") // Disable nginx buffering
+
+	// Get SSE manager
+	manager := services.GetSSEManager()
+
+	// Register client
+	client := manager.RegisterClient(claims.UserID)
+	defer manager.UnregisterClient(client)
+
+	// Send initial connection success message
+	c.Writer.Write([]byte(services.FormatSSEMessage(services.SSEMessage{
+		Event: "connected",
+		Data: map[string]interface{}{
+			"user_id":   claims.UserID,
+			"timestamp": time.Now().Unix(),
+			"message":   "Connected to notification stream",
+		},
+	})))
+	c.Writer.Flush()
+
+	// Create done channel to detect client disconnect
+	clientGone := c.Request.Context().Done()
+
+	// Stream messages
+	for {
+		select {
+		case <-clientGone:
+			// Client disconnected
+			return
+
+		case msg := <-client.Channel:
+			// Format and send SSE message
+			formattedMsg := services.FormatSSEMessage(msg)
+			_, err := c.Writer.Write([]byte(formattedMsg))
+			if err != nil {
+				// Client disconnected
+				return
+			}
+			c.Writer.Flush()
+		}
 	}
 }
 
@@ -82,7 +143,7 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 	}
 
 	user, _ := middleware.GetCurrentUser(c)
-	if err := h.notificationService.MarkAsRead(uint(id), user.ID); err != nil {
+	if err := h.notificationService.MarkAsRead(id, user.ID); err != nil {
 		utils.ErrorResponse(c, 400, "Failed to mark as read", err.Error())
 		return
 	}
@@ -112,7 +173,7 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 	}
 
 	user, _ := middleware.GetCurrentUser(c)
-	if err := h.notificationService.DeleteNotification(uint(id), user.ID); err != nil {
+	if err := h.notificationService.DeleteNotification(id, user.ID); err != nil {
 		utils.ErrorResponse(c, 400, "Failed to delete notification", err.Error())
 		return
 	}

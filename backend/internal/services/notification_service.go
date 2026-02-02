@@ -17,6 +17,22 @@ func NewNotificationService(notificationRepo *repositories.NotificationRepositor
 	}
 }
 
+// CreateNotification creates a notification and broadcasts via SSE
+func (s *NotificationService) CreateNotification(notification *models.Notification) error {
+	// Save to database
+	if err := s.notificationRepo.Create(notification); err != nil {
+		return err
+	}
+
+	// Broadcast to SSE clients
+	go func() {
+		manager := GetSSEManager()
+		manager.BroadcastToUser(notification.UserID, *notification)
+	}()
+
+	return nil
+}
+
 // GetUserNotifications gets all notifications for current user
 func (s *NotificationService) GetUserNotifications(userID uint, page, pageSize int) ([]models.Notification, int64, error) {
 	if page < 1 {

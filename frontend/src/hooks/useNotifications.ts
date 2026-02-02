@@ -1,9 +1,22 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { notificationService } from '@/services/notification.service';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { notificationService,type NotificationFilters } from '@/services/notification.service';
 import { toast } from 'sonner';
 
-// Note: We now use NotificationContext with SSE for real-time notifications
-// These hooks are kept for backward compatibility and manual operations
+export const useNotifications = (filters?: NotificationFilters) => {
+  return useQuery({
+    queryKey: ['notifications', filters],
+    queryFn: () => notificationService.getNotifications(filters),
+    // Removed refetchInterval - SSE will handle real-time updates
+  });
+};
+
+export const useUnreadCount = () => {
+  return useQuery({
+    queryKey: ['unread-count'],
+    queryFn: () => notificationService.getUnreadCount(),
+    // Removed refetchInterval - SSE will handle real-time updates
+  });
+};
 
 export const useMarkAsRead = () => {
   const queryClient = useQueryClient();

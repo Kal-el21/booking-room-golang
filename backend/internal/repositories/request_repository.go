@@ -64,12 +64,12 @@ func (r *RequestRepository) List(page, pageSize int, filters map[string]interfac
 		return nil, 0, err
 	}
 
-	// Get paginated results
+	// Get paginated results - Preload Bookings (plural)
 	err := query.
 		Preload("User").
 		Preload("Assigner").
-		Preload("Booking").
-		Preload("Booking.Room").
+		Preload("Bookings").      // Changed from Booking to Bookings
+		Preload("Bookings.Room"). // Preload room info for each booking
 		Order("created_at DESC").
 		Offset(offset).
 		Limit(pageSize).
@@ -84,6 +84,8 @@ func (r *RequestRepository) GetPendingRequests() ([]models.RoomRequest, error) {
 	err := r.db.
 		Where("status = ?", models.RequestPending).
 		Preload("User").
+		Preload("Bookings").      // Changed from Booking to Bookings
+		Preload("Bookings.Room"). // Preload room info
 		Order("created_at ASC").
 		Find(&requests).Error
 	return requests, err

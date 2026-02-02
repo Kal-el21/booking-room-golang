@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatCard } from '@/components/common/StatCard';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { DoorOpen, Users, Calendar, Activity } from 'lucide-react';
 import { useRooms } from '@/hooks/useRooms';
 import { useUsers } from '@/hooks/useUsers';
@@ -9,6 +10,14 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
 export const AdminDashboard = () => {
+  return (
+    <ErrorBoundary>
+      <AdminDashboardContent />
+    </ErrorBoundary>
+  );
+};
+
+const AdminDashboardContent = () => {
   const navigate = useNavigate();
 
   // Fetch data
@@ -29,19 +38,19 @@ export const AdminDashboard = () => {
 
   // Calculate stats
   const totalRooms = roomsData?.meta.total || 0;
-  const activeRooms = roomsData?.data.filter((r) => r.is_active).length || 0;
+  const activeRooms = (roomsData?.data || []).filter((r) => r.is_active).length || 0;
   const totalUsers = usersData?.meta.total || 0;
-  const activeUsers = usersData?.data.filter((u) => u.is_active).length || 0;
+  const activeUsers = (usersData?.data || []).filter((u) => u.is_active).length || 0;
 
   // Calculate room usage (this month)
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  const bookingsThisMonth = bookingsData?.data.filter((b) => {
+  const bookingsThisMonth = (bookingsData?.data || []).filter((b) => {
+    if (!b.booking_date || b.status !== 'confirmed') return false;
     const bookingDate = new Date(b.booking_date);
     return (
       bookingDate.getMonth() === currentMonth &&
-      bookingDate.getFullYear() === currentYear &&
-      b.status === 'confirmed'
+      bookingDate.getFullYear() === currentYear
     );
   }).length || 0;
 
@@ -52,25 +61,16 @@ export const AdminDashboard = () => {
     : 0;
 
   // Room status breakdown
-  const roomsByStatus = roomsData?.data.reduce((acc, room) => {
+  const roomsByStatus = (roomsData?.data || []).reduce((acc, room) => {
     acc[room.status] = (acc[room.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>) || {};
 
   // User role breakdown
-  const usersByRole = usersData?.data.reduce((acc, user) => {
+  const usersByRole = (usersData?.data || []).reduce((acc, user) => {
     acc[user.role] = (acc[user.role] || 0) + 1;
     return acc;
   }, {} as Record<string, number>) || {};
-
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      available: 'text-green-600',
-      occupied: 'text-yellow-600',
-      maintenance: 'text-red-600',
-    };
-    return colors[status] || 'text-gray-600';
-  };
 
   return (
     <div className="space-y-6">
@@ -199,7 +199,7 @@ export const AdminDashboard = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {!bookingsData || bookingsData.data.length === 0 ? (
+          {!bookingsData || (bookingsData.data || []).length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p>No bookings yet</p>
@@ -207,7 +207,7 @@ export const AdminDashboard = () => {
             </div>
           ) : (
             <div className="space-y-2">
-              {bookingsData.data.slice(0, 5).map((booking) => (
+              {(bookingsData?.data || []).slice(0, 5).map((booking) => (
                 <div
                   key={booking.id}
                   className="flex items-center justify-between p-3 border rounded-lg text-sm"
@@ -233,3 +233,5 @@ export const AdminDashboard = () => {
     </div>
   );
 };
+
+export default AdminDashboard;

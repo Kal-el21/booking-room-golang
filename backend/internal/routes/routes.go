@@ -82,6 +82,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 
 			// Notification routes
 			protected.GET("/notifications", notificationHandler.GetNotifications)
+			protected.GET("/notifications/stream", notificationHandler.StreamNotifications) // SSE endpoint
 			protected.GET("/notifications/unread-count", notificationHandler.GetUnreadCount)
 			protected.PUT("/notifications/:id/mark-as-read", notificationHandler.MarkAsRead)
 			protected.POST("/notifications/mark-all-as-read", notificationHandler.MarkAllAsRead)
@@ -89,16 +90,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 
 			// Calendar (accessible by all authenticated users)
 			protected.GET("/calendar", bookingHandler.GetCalendar)
-
-			// ========================================
-			// USER VIEW (Room Admin & GA can view users)
-			// ========================================
-			userView := protected.Group("")
-			userView.Use(middleware.RequireRole(models.RoleRoomAdmin, models.RoleGA))
-			{
-				userView.GET("/users", userHandler.ListUsers)
-				userView.GET("/users/:id", userHandler.GetUser)
-			}
 
 			// ========================================
 			// ROOM ADMIN ROUTES (Room Admin only)
@@ -111,10 +102,21 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 				roomAdmin.PUT("/rooms/:id", roomHandler.UpdateRoom)
 				roomAdmin.DELETE("/rooms/:id", roomHandler.DeleteRoom)
 
-				// User Management (Update, Delete, Reset Password)
+				// User Management (Add, Update, Delete, Reset Password)
 				roomAdmin.PUT("/users/:id", userHandler.UpdateUser)
 				roomAdmin.DELETE("/users/:id", userHandler.DeleteUser)
 				roomAdmin.POST("/users/:id/reset-password", userHandler.ResetPassword)
+			}
+
+			// ========================================
+			// ROOM ADMIN & GA ROUTES (Can view users)
+			// ========================================
+			adminGA := protected.Group("")
+			adminGA.Use(middleware.RequireRole(models.RoleRoomAdmin, models.RoleGA))
+			{
+				// Both can view users
+				adminGA.GET("/users", userHandler.ListUsers)
+				adminGA.GET("/users/:id", userHandler.GetUser)
 			}
 
 			// ========================================

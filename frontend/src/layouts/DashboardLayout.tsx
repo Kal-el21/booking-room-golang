@@ -20,7 +20,6 @@ import {
   DoorOpen,
   FileText,
   Calendar,
-  Bell,
   Users,
   LogOut,
   Moon,
@@ -38,6 +37,20 @@ interface NavItem {
   badge?: number;
 }
 
+// Map role to route path prefix
+const getRolePath = (role: string | undefined): string => {
+  switch (role) {
+    case 'room_admin':
+      return 'admin';
+    case 'GA':
+      return 'ga';
+    case 'user':
+      return 'user';
+    default:
+      return 'user'; // Default fallback
+  }
+};
+
 export const DashboardLayout = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -46,12 +59,20 @@ export const DashboardLayout = () => {
 
   // Get navigation items based on role
   const getNavItems = (): NavItem[] => {
+    // If user is not loaded yet, return empty array
+    if (!user) {
+      return [];
+    }
+
+    // Map role to route path prefix
+    const rolePath = getRolePath(user.role);
+    
     const baseItems: NavItem[] = [
-      { title: 'Dashboard', href: `/${user?.role}/dashboard`, icon: LayoutDashboard },
-      { title: 'Calendar', href: `/${user?.role}/calendar`, icon: Calendar },
+      { title: 'Dashboard', href: `/${rolePath}/dashboard`, icon: LayoutDashboard },
+      { title: 'Calendar', href: `/${rolePath}/calendar`, icon: Calendar },
     ];
 
-    switch (user?.role) {
+    switch (user.role) {
       case 'user':
         return [
           ...baseItems,
@@ -195,7 +216,7 @@ export const DashboardLayout = () => {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to={`/${user?.role}/profile`}>
+                    <Link to={`/${getRolePath(user?.role)}/profile`}>
                       <Settings className="mr-2 h-4 w-4" />
                       Settings
                     </Link>

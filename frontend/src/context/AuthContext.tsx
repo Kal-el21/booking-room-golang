@@ -36,7 +36,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Verify token is still valid by fetching current user
           const currentUser = await authService.getCurrentUser();
           setUser(currentUser);
-        } catch (error) {
+        } catch {
           // Token invalid, clear everything
           localStorage.clear();
           setUser(null);
@@ -89,14 +89,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async () => {
     try {
       await authService.logout();
-      setUser(null);
-      toast.success('Logged out successfully');
-      navigate('/login');
-    } catch (error: any) {
+    } catch {
       // Still clear user even if API call fails
-      setUser(null);
-      navigate('/login');
     }
+    setUser(null);
+    toast.success('Logged out successfully');
+    navigate('/login');
   };
 
   const refreshUser = async () => {

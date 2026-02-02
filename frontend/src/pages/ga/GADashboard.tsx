@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatCard } from '@/components/common/StatCard';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { CalendarDays, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { useRequests } from '@/hooks/useRequests';
 import { useBookings } from '@/hooks/useBookings';
@@ -9,6 +10,14 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 
 export const GADashboard = () => {
+  return (
+    <ErrorBoundary>
+      <GADashboardContent />
+    </ErrorBoundary>
+  );
+};
+
+const GADashboardContent = () => {
   const navigate = useNavigate();
 
   // Fetch data
@@ -23,29 +32,29 @@ export const GADashboard = () => {
   });
 
   // Calculate stats
-  const pendingRequests = allRequests?.data.filter(
+  const pendingRequests = (allRequests?.data || []).filter(
     (r) => r.status === 'pending'
   ).length || 0;
 
-  const approvedToday = allRequests?.data.filter((r) => {
-    if (r.status !== 'approved') return false;
+  const approvedToday = (allRequests?.data || []).filter((r) => {
+    if (r.status !== 'approved' || !r.updated_at) return false;
     return isToday(parseISO(r.updated_at));
   }).length || 0;
 
-  const rejectedToday = allRequests?.data.filter((r) => {
-    if (r.status !== 'rejected') return false;
+  const rejectedToday = (allRequests?.data || []).filter((r) => {
+    if (r.status !== 'rejected' || !r.updated_at) return false;
     return isToday(parseISO(r.updated_at));
   }).length || 0;
 
   const totalBookings = bookingsData?.meta.total || 0;
 
   // Get pending requests for table
-  const recentPendingRequests = allRequests?.data
+  const recentPendingRequests = (allRequests?.data || [])
     .filter((r) => r.status === 'pending')
-    .slice(0, 5) || [];
+    .slice(0, 5);
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, any> = {
+    const variants: Record<string, 'default' | 'destructive' | 'secondary' | 'outline'> = {
       pending: 'outline',
       approved: 'default',
       rejected: 'destructive',
@@ -131,11 +140,11 @@ export const GADashboard = () => {
                       {request.purpose}
                     </p>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span>{format(parseISO(request.booking_date), 'MMM dd, yyyy')}</span>
+                      <span>{request.booking_date ? format(parseISO(request.booking_date), 'MMM dd, yyyy') : 'N/A'}</span>
                       <span>
                         {request.start_time} - {request.end_time}
                       </span>
-                      <span>Requested {format(parseISO(request.created_at), 'MMM dd')}</span>
+                      <span>Requested {request.created_at ? format(parseISO(request.created_at), 'MMM dd') : 'N/A'}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -179,9 +188,9 @@ export const GADashboard = () => {
               <p className="text-2xl font-bold">
                 {allRequests?.data
                   ? Math.round(
-                      (allRequests.data.filter((r) => r.status === 'approved').length /
-                        allRequests.meta.total) *
-                        100
+                      (((allRequests.data || []).filter((r) => r.status === 'approved').length /
+                        (allRequests.meta?.total || 1)) *
+                        100)
                     )
                   : 0}%
               </p>
@@ -192,7 +201,7 @@ export const GADashboard = () => {
                 <CalendarDays className="h-4 w-4 text-primary" />
               </div>
               <p className="text-2xl font-bold">
-                {bookingsData?.data.filter((b) => b.status === 'confirmed').length || 0}
+                                {(bookingsData?.data || []).filter((b) => b.status === 'confirmed').length || 0}
               </p>
             </div>
           </div>
@@ -201,3 +210,5 @@ export const GADashboard = () => {
     </div>
   );
 };
+
+export default GADashboard;

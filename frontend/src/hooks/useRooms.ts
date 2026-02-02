@@ -6,6 +6,7 @@ export const useRooms = (filters?: RoomFilters) => {
   return useQuery({
     queryKey: ['rooms', filters],
     queryFn: () => roomService.getRooms(filters),
+    retry: 1,
   });
 };
 
@@ -26,8 +27,9 @@ export const useCreateRoom = () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       toast.success('Room created successfully');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to create room');
+    onError: (error: unknown) => {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || 'Failed to create room');
     },
   });
 };
@@ -42,8 +44,9 @@ export const useUpdateRoom = () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       toast.success('Room updated successfully');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to update room');
+    onError: (error: unknown) => {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || 'Failed to update room');
     },
   });
 };
@@ -57,8 +60,9 @@ export const useDeleteRoom = () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       toast.success('Room deleted successfully');
     },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to delete room');
+    onError: (error: unknown) => {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || 'Failed to delete room');
     },
   });
 };
