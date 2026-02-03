@@ -1,19 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
+import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCalendar } from '@/hooks/useCalendar';
 import { useRooms } from '@/hooks/useRooms';
-import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { Calendar as CalendarIcon, DoorOpen, User, Clock, FileText } from 'lucide-react';
 
 export const CalendarPage = () => {
+  const calendarRef = useRef<any>(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentView, setCurrentView] = useState('dayGridMonth');
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
@@ -45,7 +49,7 @@ export const CalendarPage = () => {
     return events.map((event) => {
       let backgroundColor = '#2563eb'; // Blue - darker for better visibility
       let borderColor = '#2563eb';
-      let textColor = '#ffffff';
+      const textColor = '#ffffff';
 
       // Color coding based on status - darker colors for better contrast
       if (event.type === 'request') {
@@ -89,6 +93,12 @@ export const CalendarPage = () => {
   const handleDatesSet = (dateInfo: any) => {
     const newStart = format(dateInfo.start, 'yyyy-MM-dd');
     const newEnd = format(dateInfo.end, 'yyyy-MM-dd');
+    const newDate = dateInfo.start;
+    const newView = dateInfo.view.type;
+    
+    // Update the calendar's current date and view to prevent reset
+    setCurrentDate(newDate);
+    setCurrentView(newView);
     
     // Only update if dates actually changed
     if (newStart !== dateRange.start || newEnd !== dateRange.end) {
@@ -183,8 +193,10 @@ export const CalendarPage = () => {
       <Card>
         <CardContent className="pt-6">
           <FullCalendar
+            ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
+            initialView={currentView}
+            initialDate={currentDate}
             headerToolbar={{
               left: 'prev,next today',
               center: 'title',

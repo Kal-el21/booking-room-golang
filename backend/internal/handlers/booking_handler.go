@@ -126,15 +126,44 @@ func (h *BookingHandler) GetCalendar(c *gin.Context) {
 		roomID = &roomIDUint
 	}
 
-	bookings, err := h.bookingService.GetCalendar(startDate, endDate, roomID)
+	bookings, requests, err := h.bookingService.GetCalendar(startDate, endDate, roomID)
 	if err != nil {
 		utils.ErrorResponse(c, 400, "Failed to get calendar", err.Error())
 		return
 	}
 
 	var responses []interface{}
+
+	// Add bookings
 	for _, booking := range bookings {
-		responses = append(responses, booking.ToResponse())
+		responses = append(responses, map[string]interface{}{
+			"id":        booking.ID,
+			"type":      "booking",
+			"title":     booking.Request.Purpose,
+			"start":     booking.BookingDate.Format("2006-01-02") + "T" + booking.StartTime.Format("15:04:05"),
+			"end":       booking.BookingDate.Format("2006-01-02") + "T" + booking.EndTime.Format("15:04:05"),
+			"room_id":   booking.RoomID,
+			"room_name": booking.Room.RoomName,
+			"status":    string(booking.Status),
+			"user_name": booking.Request.User.Name,
+			"purpose":   booking.Request.Purpose,
+		})
+	}
+
+	// Add pending requests
+	for _, request := range requests {
+		responses = append(responses, map[string]interface{}{
+			"id":        request.ID,
+			"type":      "request",
+			"title":     request.Purpose,
+			"start":     request.BookingDate.Format("2006-01-02") + "T" + request.StartTime.Format("15:04:05"),
+			"end":       request.BookingDate.Format("2006-01-02") + "T" + request.EndTime.Format("15:04:05"),
+			"room_id":   0,
+			"room_name": "",
+			"status":    string(request.Status),
+			"user_name": request.User.Name,
+			"purpose":   request.Purpose,
+		})
 	}
 
 	utils.SuccessResponse(c, 200, "Calendar retrieved successfully", responses)

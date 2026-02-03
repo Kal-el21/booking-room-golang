@@ -76,13 +76,16 @@ func (s *RequestService) CreateRequest(input CreateRequestInput, userID uint) (*
 		return nil, errors.New("invalid booking date format (use YYYY-MM-DD)")
 	}
 
-	// Parse times
-	startTime, err := time.Parse("15:04", input.StartTime)
+	// Parse times - parse as local time to avoid timezone conversion issues
+	// Format: "2006-01-02T15:04-07:00" (without seconds)
+	startTimeStr := "2006-01-02T" + input.StartTime + "+07:00"
+	startTime, err := time.Parse("2006-01-02T15:04-07:00", startTimeStr)
 	if err != nil {
 		return nil, errors.New("invalid start time format (use HH:MM)")
 	}
 
-	endTime, err := time.Parse("15:04", input.EndTime)
+	endTimeStr := "2006-01-02T" + input.EndTime + "+07:00"
+	endTime, err := time.Parse("2006-01-02T15:04-07:00", endTimeStr)
 	if err != nil {
 		return nil, errors.New("invalid end time format (use HH:MM)")
 	}
@@ -238,12 +241,14 @@ func (s *RequestService) UpdateRequest(id uint, input CreateRequestInput, userID
 		return nil, errors.New("invalid booking date format")
 	}
 
-	startTime, err := time.Parse("15:04", input.StartTime)
+	startTimeStr := "2006-01-02T" + input.StartTime + "+07:00"
+	startTime, err := time.Parse("2006-01-02T15:04-07:00", startTimeStr)
 	if err != nil {
 		return nil, errors.New("invalid start time format")
 	}
 
-	endTime, err := time.Parse("15:04", input.EndTime)
+	endTimeStr := "2006-01-02T" + input.EndTime + "+07:00"
+	endTime, err := time.Parse("2006-01-02T15:04-07:00", endTimeStr)
 	if err != nil {
 		return nil, errors.New("invalid end time format")
 	}

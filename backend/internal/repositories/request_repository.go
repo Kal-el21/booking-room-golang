@@ -214,3 +214,19 @@ func (r *BookingRepository) GetCalendarBookings(startDate, endDate time.Time, ro
 
 	return bookings, err
 }
+
+// GetCalendarRequests gets pending requests for calendar view within date range
+func (r *RequestRepository) GetCalendarRequests(startDate, endDate time.Time, roomID *uint) ([]models.RoomRequest, error) {
+	var requests []models.RoomRequest
+
+	query := r.db.Model(&models.RoomRequest{}).
+		Where("booking_date >= ? AND booking_date <= ?", startDate, endDate).
+		Where("status = ?", models.RequestPending)
+
+	err := query.
+		Preload("User").
+		Order("booking_date ASC, start_time ASC").
+		Find(&requests).Error
+
+	return requests, err
+}

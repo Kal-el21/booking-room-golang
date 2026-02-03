@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:18.1
     container_name: room-booking-db
     restart: unless-stopped
     environment:
@@ -49,7 +49,7 @@ services:
       DB_TIMEZONE: Asia/Jakarta
       
       # JWT
-      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+      JWT_SECRET: b6d528f756efc75c1283220118299dff1af19f663fabebe1d4aaa1a39d9581d6da3007bdc0e879a25938637b3fede05e191dd2c0e3c7adf7446c188e259526a6
       JWT_ACCESS_TOKEN_EXPIRE_HOURS: 24
       JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
       JWT_REMEMBER_ME_ACCESS_DAYS: 7

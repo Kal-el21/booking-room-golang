@@ -108,25 +108,36 @@ func (s *BookingService) CancelBooking(id uint, userID uint, userRole models.Use
 	return nil
 }
 
-// GetCalendar gets calendar view of bookings
-func (s *BookingService) GetCalendar(startDate, endDate string, roomID *uint) ([]models.RoomBooking, error) {
+// GetCalendar gets calendar view of bookings and requests
+func (s *BookingService) GetCalendar(startDate, endDate string, roomID *uint) ([]models.RoomBooking, []models.RoomRequest, error) {
 	start, err := time.Parse("2006-01-02", startDate)
 	if err != nil {
-		return nil, errors.New("invalid start date format (use YYYY-MM-DD)")
+		return nil, nil, errors.New("invalid start date format (use YYYY-MM-DD)")
 	}
 
 	end, err := time.Parse("2006-01-02", endDate)
 	if err != nil {
-		return nil, errors.New("invalid end date format (use YYYY-MM-DD)")
+		return nil, nil, errors.New("invalid end date format (use YYYY-MM-DD)")
 	}
 
 	// Validate date range
 	if end.Before(start) {
-		return nil, errors.New("end date must be after start date")
+		return nil, nil, errors.New("end date must be after start date")
 	}
 
 	// Get bookings from repository with date range
-	return s.bookingRepo.GetCalendarBookings(start, end, roomID)
+	bookings, err := s.bookingRepo.GetCalendarBookings(start, end, roomID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Get pending requests from repository with date range (roomID not used for requests)
+	requests, err := s.requestRepo.GetCalendarRequests(start, end, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return bookings, requests, nil
 }
 
 // notifyBookingCancelled sends cancellation notification (broadcasts to SSE)
