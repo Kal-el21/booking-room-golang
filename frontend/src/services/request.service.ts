@@ -1,5 +1,5 @@
 import api from './api';
-import type { RoomRequest, Room, ApiResponse, PaginatedResponse } from '@/types';
+import type { RoomRequest, Room, ApiResponse, PaginatedResponse, CreateRequestInput } from '@/types';
 
 const REQUEST_PREFIX = '/api/v1/room-requests';
 
@@ -7,23 +7,6 @@ export interface RequestFilters {
   page?: number;
   page_size?: number;
   status?: 'pending' | 'approved' | 'rejected' | 'cancelled';
-}
-
-export interface CreateRequestData {
-  required_capacity: number;
-  purpose: string;
-  notes?: string;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-}
-
-export interface ApproveRequestData {
-  room_id: number;
-}
-
-export interface RejectRequestData {
-  reason: string;
 }
 
 export const requestService = {
@@ -47,13 +30,13 @@ export const requestService = {
   },
 
   // Create request (user)
-  createRequest: async (data: CreateRequestData): Promise<RoomRequest> => {
+  createRequest: async (data: CreateRequestInput): Promise<RoomRequest> => {
     const response = await api.post<ApiResponse<RoomRequest>>(REQUEST_PREFIX, data);
     return response.data.data;
   },
 
   // Update request (user)
-  updateRequest: async (id: number, data: Partial<CreateRequestData>): Promise<RoomRequest> => {
+  updateRequest: async (id: number, data: Partial<CreateRequestInput>): Promise<RoomRequest> => {
     const response = await api.put<ApiResponse<RoomRequest>>(`${REQUEST_PREFIX}/${id}`, data);
     return response.data.data;
   },
@@ -72,7 +55,7 @@ export const requestService = {
   },
 
   // Approve request (GA)
-  approveRequest: async (requestId: number, data: ApproveRequestData): Promise<any> => {
+  approveRequest: async (requestId: number, data: { room_id: number }): Promise<any> => {
     const response = await api.post<ApiResponse<any>>(
       `${REQUEST_PREFIX}/${requestId}/approve`,
       data
@@ -81,7 +64,7 @@ export const requestService = {
   },
 
   // Reject request (GA)
-  rejectRequest: async (requestId: number, data: RejectRequestData): Promise<void> => {
+  rejectRequest: async (requestId: number, data: { reason: string }): Promise<void> => {
     await api.post(`${REQUEST_PREFIX}/${requestId}/reject`, data);
   },
 };

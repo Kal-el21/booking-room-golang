@@ -19,9 +19,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FileText, Calendar, Clock, Users, Plus, Trash2, Eye } from 'lucide-react';
+import { FileText, Calendar, Clock, Users, Plus, Trash2, Eye, Repeat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { format, parseISO } from 'date-fns';
+import { formatDateRange, formatTimeRange, getBookingTypeLabel } from '@/utils/dateHelpers';
+import type { RequestFilters } from '@/types';
 
 export const MyRequestsPage = () => {
   const navigate = useNavigate();
@@ -32,17 +33,17 @@ export const MyRequestsPage = () => {
   const { data: requestsData, isLoading } = useRequests({
     page: 1,
     page_size: 100,
-    status: statusFilter !== 'all' ? (statusFilter as any) : undefined,
+    status: statusFilter !== 'all' ? (statusFilter as RequestFilters['status']) : undefined,
   });
 
   const deleteRequest = useDeleteRequest();
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, any> = {
-      pending: { variant: 'outline', color: 'text-yellow-600', label: 'Pending' },
-      approved: { variant: 'default', color: 'text-green-600', label: 'Approved' },
-      rejected: { variant: 'destructive', color: 'text-red-600', label: 'Rejected' },
-      cancelled: { variant: 'secondary', color: 'text-gray-600', label: 'Cancelled' },
+    const variants: Record<string, { variant: 'default' | 'outline' | 'secondary' | 'destructive'; label: string }> = {
+      pending: { variant: 'outline', label: 'Pending' },
+      approved: { variant: 'default', label: 'Approved' },
+      rejected: { variant: 'destructive', label: 'Rejected' },
+      cancelled: { variant: 'secondary', label: 'Cancelled' },
     };
     const config = variants[status] || variants.pending;
     return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -55,7 +56,7 @@ export const MyRequestsPage = () => {
       await deleteRequest.mutateAsync(selectedRequestId);
       setDeleteDialogOpen(false);
       setSelectedRequestId(null);
-    } catch (error) {
+    } catch {
       // Error handled in hook
     }
   };
@@ -132,15 +133,29 @@ export const MyRequestsPage = () => {
                       <CardTitle className="text-lg">{request.purpose}</CardTitle>
                       {getStatusBadge(request.status)}
                     </div>
-                    <CardDescription className="space-y-1">
+                    <CardDescription className="space-y-2">
+                      {/* Booking Type Badge */}
+                      {(request.is_recurring || request.end_date) && (
+                        <div className="flex items-center gap-1">
+                          {request.is_recurring ? (
+                            <Repeat className="h-3 w-3 text-primary" />
+                          ) : (
+                            <Calendar className="h-3 w-3 text-primary" />
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            {getBookingTypeLabel(request)}
+                          </Badge>
+                        </div>
+                      )}
+                      {/* Date Display */}
                       <div className="flex items-center gap-4 text-sm flex-wrap">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {format(parseISO(request.booking_date), 'MMM dd, yyyy')}
+                          {formatDateRange(request)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {request.start_time} - {request.end_time}
+                          {formatTimeRange(request.start_time, request.end_time)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Users className="h-3 w-3" />

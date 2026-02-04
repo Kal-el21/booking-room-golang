@@ -7,14 +7,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DoorOpen, Calendar, Clock, User, XCircle, Search } from 'lucide-react';
+import { DoorOpen, Calendar, Clock, XCircle, Search, Repeat } from 'lucide-react';
 import { format, parseISO, isPast, startOfDay } from 'date-fns';
+import { formatBookingDateRange, formatTimeRange, isMultiDayBooking } from '@/utils/dateHelpers';
+import type { Booking } from '@/types';
 
 export const AllBookingsPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   // Fetch all bookings for stats (unfiltered)
   const { data: allBookingsData } = useBookings({
@@ -26,12 +28,12 @@ export const AllBookingsPage = () => {
   const { data: bookingsData, isLoading } = useBookings({
     page: 1,
     page_size: 100,
-    status: statusFilter !== 'all' ? (statusFilter as any) : undefined,
+    status: statusFilter !== 'all' ? (statusFilter as Booking['status']) : undefined,
   });
 
   const cancelBooking = useCancelBooking();
 
-  const handleCancelClick = (booking: any) => {
+  const handleCancelClick = (booking: Booking) => {
     setSelectedBooking(booking);
     setCancelDialogOpen(true);
   };
@@ -43,13 +45,13 @@ export const AllBookingsPage = () => {
       await cancelBooking.mutateAsync(selectedBooking.id);
       setCancelDialogOpen(false);
       setSelectedBooking(null);
-    } catch (error) {
+    } catch {
       // Error handled in hook
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, any> = {
+    const variants: Record<string, { variant: 'default' | 'outline' | 'secondary' | 'destructive'; label: string }> = {
       confirmed: { variant: 'default', label: 'Confirmed' },
       cancelled: { variant: 'destructive', label: 'Cancelled' },
       completed: { variant: 'secondary', label: 'Completed' },
@@ -58,7 +60,7 @@ export const AllBookingsPage = () => {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const canCancel = (booking: any) => {
+  const canCancel = (booking: Booking) => {
     if (booking.status !== 'confirmed') return false;
     const bookingDate = startOfDay(parseISO(booking.booking_date));
     return !isPast(bookingDate);
@@ -76,7 +78,7 @@ export const AllBookingsPage = () => {
   const bookings = bookingsData?.data || [];
   const allBookings = allBookingsData?.data || [];
   
-  const filteredBookings = bookings.filter((booking) =>
+  const filteredBookings = bookings.filter((booking: Booking) =>
     booking.room_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -212,15 +214,24 @@ export const AllBookingsPage = () => {
                       </CardTitle>
                       {getStatusBadge(booking.status)}
                     </div>
+                    {/* Multi-day badge */}
+                    {isMultiDayBooking(booking) && (
+                      <div className="flex items-center gap-1 mb-2">
+                        <Repeat className="h-3 w-3 text-primary" />
+                        <Badge variant="outline" className="text-xs">
+                          Multi-day
+                        </Badge>
+                      </div>
+                    )}
                     <CardDescription className="space-y-2">
                       <div className="flex items-center gap-4 text-sm flex-wrap">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {format(parseISO(booking.booking_date), 'MMM dd, yyyy')}
+                          {formatBookingDateRange(booking)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {booking.start_time} - {booking.end_time}
+                          {formatTimeRange(booking.start_time, booking.end_time)}
                         </span>
                       </div>
                       <div className="text-sm text-muted-foreground">
@@ -272,11 +283,11 @@ export const AllBookingsPage = () => {
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-3 w-3" />
-                {format(parseISO(selectedBooking.booking_date), 'MMM dd, yyyy')}
+                {formatBookingDateRange(selectedBooking)}
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                {selectedBooking.start_time} - {selectedBooking.end_time}
+                {formatTimeRange(selectedBooking.start_time, selectedBooking.end_time)}
               </div>
             </div>
           )}

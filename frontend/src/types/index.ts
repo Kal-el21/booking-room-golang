@@ -72,13 +72,34 @@ export interface RoomRequest {
   purpose: string;
   notes?: string;
   booking_date: string;
+  end_date?: string; // Multi-day booking end date
   start_time: string;
   end_time: string;
+  // Recurring booking fields
+  is_recurring: boolean;
+  recurring_type?: 'daily' | 'weekly' | 'monthly';
+  recurring_days?: string; // Comma-separated days: "1,3,5" for Mon,Wed,Fri
+  recurring_end_date?: string;
   status: 'pending' | 'approved' | 'rejected' | 'cancelled';
   assigned_by?: number;
   rejected_reason?: string;
   created_at: string;
   updated_at: string;
+}
+
+// Create Request Input
+export interface CreateRequestInput {
+  required_capacity: number;
+  purpose: string;
+  notes?: string;
+  booking_date: string;
+  end_date?: string;
+  start_time: string;
+  end_time: string;
+  is_recurring?: boolean;
+  recurring_type?: 'daily' | 'weekly' | 'monthly';
+  recurring_days?: string;
+  recurring_end_date?: string;
 }
 
 // Booking Types
@@ -89,6 +110,7 @@ export interface Booking {
   room_name?: string;
   booked_by: number;
   booking_date: string;
+  end_date?: string; // Multi-day booking end date
   start_time: string;
   end_time: string;
   status: 'confirmed' | 'cancelled' | 'completed';
@@ -124,4 +146,13 @@ export interface PaginatedResponse<T> {
   message: string;
   data: T[];
   meta: PaginationMeta;
+}
+
+// Request Filters
+export type RequestStatusFilter = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface RequestFilters {
+  page?: number;
+  page_size?: number;
+  status?: RequestStatusFilter;
 }

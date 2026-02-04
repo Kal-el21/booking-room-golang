@@ -14,6 +14,12 @@ export interface CalendarEvent {
   type: 'booking' | 'request';
   user_name?: string;
   purpose?: string;
+  // Multi-day and recurring fields
+  end_date?: string;
+  is_recurring?: boolean;
+  recurring_type?: 'daily' | 'weekly' | 'monthly';
+  recurring_days?: string;
+  recurring_end_date?: string;
 }
 
 export interface CalendarFilters {

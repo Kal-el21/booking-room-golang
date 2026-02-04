@@ -11,8 +11,107 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCalendar } from '@/hooks/useCalendar';
 import { useRooms } from '@/hooks/useRooms';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { Calendar as CalendarIcon, DoorOpen, User, Clock, FileText } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isWithinInterval, getDay } from 'date-fns';
+import { Calendar as CalendarIcon, DoorOpen, User, Clock, FileText, Repeat } from 'lucide-react';
+import type { CalendarEvent } from '@/services/calendar.service';
+
+/**
+ * Expand a multi-day or recurring event into individual calendar events
+ */
+const expandCalendarEvent = (event: CalendarEvent, calendarStart: Date, calendarEnd: Date): CalendarEvent[] => {
+  const expandedEvents: CalendarEvent[] = [];
+  const eventStart = parseISO(event.start);
+  const eventEnd = event.end_date ? parseISO(event.end_date) : eventStart;
+  const recurringEndDate = event.recurring_end_date ? parseISO(event.recurring_end_date) : null;
+
+  // If not recurring and not multi-day, return as is
+  if (!event.is_recurring && !event.end_date) {
+    return [event];
+  }
+
+  // Handle recurring events
+  if (event.is_recurring && event.recurring_type) {
+    const daysMap: Record<string, number> = {
+      '1': 1, // Monday
+      '2': 2, // Tuesday
+      '3': 3, // Wednesday
+      '4': 4, // Thursday
+      '5': 5, // Friday
+      '6': 6, // Saturday
+      '7': 0, // Sunday
+    };
+
+    const recurringDays = event.recurring_days?.split(',').map(d => daysMap[d.trim()]) || [];
+    
+    // Determine the effective end date for recurring
+    const effectiveEnd = recurringEndDate || eventEnd;
+    
+    // Get all days in the calendar range
+    const allDays = eachDayOfInterval({ start: eventStart, end: effectiveEnd });
+    
+    for (const day of allDays) {
+      // Check if this day matches the recurring pattern
+      const shouldInclude = (
+        (event.recurring_type === 'daily') ||
+        (recurringDays.includes(getDay(day)))
+      );
+      
+      if (shouldInclude) {
+        // Check if this day is within the calendar view
+        if (isWithinInterval(day, { start: calendarStart, end: calendarEnd })) {
+          // Create a new event for this day
+          const dayStart = new Date(day);
+          dayStart.setHours(eventStart.getHours(), eventStart.getMinutes());
+          
+          const dayEnd = new Date(day);
+          dayEnd.setHours(eventEnd.getHours(), eventEnd.getMinutes());
+          
+          expandedEvents.push({
+            ...event,
+            id: `${event.id}_${format(day, 'yyyy-MM-dd')}`,
+            start: dayStart.toISOString(),
+            end: dayEnd.toISOString(),
+            // Mark as expanded occurrence
+            title: `${event.title} (${format(day, 'MMM dd')})`,
+          });
+        }
+      }
+    }
+    
+    return expandedEvents;
+  }
+
+  // Handle multi-day events (non-recurring)
+  if (event.end_date && event.start !== event.end_date) {
+    const allDays = eachDayOfInterval({ start: eventStart, end: eventEnd });
+    
+    for (const day of allDays) {
+      // Check if this day is within the calendar view
+      if (isWithinInterval(day, { start: calendarStart, end: calendarEnd })) {
+        // Create a new event for this day
+        const dayStart = new Date(day);
+        dayStart.setHours(eventStart.getHours(), eventStart.getMinutes());
+        
+        const dayEnd = new Date(day);
+        dayEnd.setHours(eventEnd.getHours(), eventEnd.getMinutes());
+        
+        expandedEvents.push({
+          ...event,
+          id: `${event.id}_${format(day, 'yyyy-MM-dd')}`,
+          start: dayStart.toISOString(),
+          end: dayEnd.toISOString(),
+          // Mark as multi-day occurrence
+          title: `${event.title} (${format(day, 'MMM dd')})`,
+        });
+      }
+    }
+    
+    return expandedEvents;
+  }
+
+  // Default: return as is
+  return [event];
+};
 
 export const CalendarPage = () => {
   const calendarRef = useRef<any>(null);
@@ -46,7 +145,17 @@ export const CalendarPage = () => {
   const calendarEvents = useMemo(() => {
     if (!events) return [];
 
-    return events.map((event) => {
+    const calendarStart = parseISO(dateRange.start);
+    const calendarEnd = parseISO(dateRange.end);
+
+    const expandedEvents: CalendarEvent[] = [];
+
+    for (const event of events) {
+      const expanded = expandCalendarEvent(event, calendarStart, calendarEnd);
+      expandedEvents.push(...expanded);
+    }
+
+    return expandedEvents.map((event) => {
       let backgroundColor = '#2563eb'; // Blue - darker for better visibility
       let borderColor = '#2563eb';
       const textColor = '#ffffff';
@@ -83,7 +192,7 @@ export const CalendarPage = () => {
         },
       };
     });
-  }, [events]);
+  }, [events, dateRange]);
 
   const handleEventClick = (info: any) => {
     setSelectedEvent(info.event.extendedProps);
@@ -106,12 +215,31 @@ export const CalendarPage = () => {
     }
   };
 
-  const getStatusBadge = (status: string, type: string) => {
+  const getStatusBadge = (status: string, type: string, event: CalendarEvent) => {
     if (type === 'request') {
       return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending Request</Badge>;
     }
 
-    const config: Record<string, any> = {
+    // Show multi-day/recurring badge
+    if (event.is_recurring || event.end_date) {
+      return (
+        <div className="flex gap-1">
+          <Badge variant="outline">
+            {event.is_recurring ? (
+              <span className="flex items-center gap-1">
+                <Repeat className="h-3 w-3" />
+                {event.recurring_type === 'daily' ? 'Daily' : event.recurring_type === 'weekly' ? 'Weekly' : 'Monthly'}
+              </span>
+            ) : (
+              'Multi-day'
+            )}
+          </Badge>
+          <Badge variant="default">Confirmed</Badge>
+        </div>
+      );
+    }
+
+    const config: Record<string, { variant: 'default' | 'outline' | 'secondary' | 'destructive'; label: string }> = {
       confirmed: { variant: 'default', label: 'Confirmed' },
       cancelled: { variant: 'destructive', label: 'Cancelled' },
       completed: { variant: 'secondary', label: 'Completed' },
@@ -242,8 +370,35 @@ export const CalendarPage = () => {
             <div className="space-y-4 py-4">
               {/* Status Badge */}
               <div className="flex items-center gap-2">
-                {getStatusBadge(selectedEvent.status, selectedEvent.type)}
+                {getStatusBadge(selectedEvent.status, selectedEvent.type, selectedEvent)}
               </div>
+
+              {/* Multi-day/Recurring Info */}
+              {(selectedEvent.is_recurring || selectedEvent.end_date) && (
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Repeat className="h-4 w-4" />
+                    <span className="font-medium">Booking Details</span>
+                  </div>
+                  {selectedEvent.is_recurring ? (
+                    <div className="text-sm text-muted-foreground">
+                      <p>Type: {selectedEvent.recurring_type?.charAt(0).toUpperCase() + selectedEvent.recurring_type?.slice(1)} recurring</p>
+                      {selectedEvent.recurring_days && (
+                        <p>Days: {selectedEvent.recurring_days.split(',').map(d => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][parseInt(d)-1]).join(', ')}</p>
+                      )}
+                      {selectedEvent.recurring_end_date && (
+                        <p>Until: {format(parseISO(selectedEvent.recurring_end_date), 'MMM dd, yyyy')}</p>
+                      )}
+                    </div>
+                  ) : selectedEvent.end_date ? (
+                    <div className="text-sm text-muted-foreground">
+                      <p>Multi-day booking</p>
+                      <p>From: {format(parseISO(selectedEvent.start), 'MMM dd, yyyy')}</p>
+                      <p>To: {format(parseISO(selectedEvent.end_date), 'MMM dd, yyyy')}</p>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {/* Room */}
               <div className="flex items-start gap-3">

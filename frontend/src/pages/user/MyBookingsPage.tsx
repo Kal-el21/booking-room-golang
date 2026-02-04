@@ -1,11 +1,12 @@
-import { useState } from 'react';
 import { useBookings } from '@/hooks/useBookings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DoorOpen, Calendar, Clock, MapPin } from 'lucide-react';
+import { DoorOpen, Calendar, Clock, Repeat } from 'lucide-react';
 import { format, parseISO, isPast, isToday, isFuture, startOfDay } from 'date-fns';
+import { formatBookingDateRange, formatTimeRange, isMultiDayBooking } from '@/utils/dateHelpers';
+import type { Booking } from '@/types';
 
 export const MyBookingsPage = () => {
   const { data: bookingsData, isLoading } = useBookings({
@@ -14,7 +15,7 @@ export const MyBookingsPage = () => {
   });
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, any> = {
+    const variants: Record<string, { variant: 'default' | 'outline' | 'secondary' | 'destructive'; label: string }> = {
       confirmed: { variant: 'default', label: 'Confirmed' },
       cancelled: { variant: 'destructive', label: 'Cancelled' },
       completed: { variant: 'secondary', label: 'Completed' },
@@ -26,19 +27,18 @@ export const MyBookingsPage = () => {
   const bookings = bookingsData?.data || [];
 
   // Filter bookings by date
-  const today = startOfDay(new Date());
-  const upcomingBookings = bookings.filter((b) => {
+  const upcomingBookings = bookings.filter((b: Booking) => {
     if (b.status !== 'confirmed') return false;
     const bookingDate = startOfDay(parseISO(b.booking_date));
     return isFuture(bookingDate) || isToday(bookingDate);
   });
 
-  const pastBookings = bookings.filter((b) => {
+  const pastBookings = bookings.filter((b: Booking) => {
     const bookingDate = startOfDay(parseISO(b.booking_date));
     return isPast(bookingDate) && !isToday(bookingDate);
   });
 
-  const BookingCard = ({ booking }: { booking: any }) => (
+  const BookingCard = ({ booking }: { booking: Booking }) => (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader>
         <div className="flex items-start justify-between">
@@ -49,14 +49,23 @@ export const MyBookingsPage = () => {
                 {booking.room_name || `Room #${booking.room_id}`}
               </CardTitle>
             </div>
+            {/* Multi-day badge */}
+            {isMultiDayBooking(booking) && (
+              <div className="flex items-center gap-1 mb-1">
+                <Repeat className="h-3 w-3 text-primary" />
+                <Badge variant="outline" className="text-xs">
+                  Multi-day
+                </Badge>
+              </div>
+            )}
             <CardDescription className="space-y-1 mt-2">
               <div className="flex items-center gap-1 text-sm">
                 <Calendar className="h-3 w-3" />
-                {format(parseISO(booking.booking_date), 'EEEE, MMMM dd, yyyy')}
+                {formatBookingDateRange(booking)}
               </div>
               <div className="flex items-center gap-1 text-sm">
                 <Clock className="h-3 w-3" />
-                {booking.start_time} - {booking.end_time}
+                {formatTimeRange(booking.start_time, booking.end_time)}
               </div>
             </CardDescription>
           </div>

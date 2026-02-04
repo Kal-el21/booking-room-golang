@@ -6,8 +6,35 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, CalendarDays } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Repeat, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
+import type { CreateRequestInput } from '@/types';
+
+type BookingType = 'single' | 'multi' | 'recurring';
+
+interface FormState {
+  required_capacity: string;
+  purpose: string;
+  notes: string;
+  booking_date: string;
+  end_date: string;
+  start_time: string;
+  end_time: string;
+  is_recurring: boolean;
+  recurring_type: CreateRequestInput['recurring_type'];
+  recurring_days: string[];
+  recurring_end_date: string;
+}
+
+const DAYS_OF_WEEK = [
+  { value: '1', label: 'Mon' },
+  { value: '2', label: 'Tue' },
+  { value: '3', label: 'Wed' },
+  { value: '4', label: 'Thu' },
+  { value: '5', label: 'Fri' },
+  { value: '6', label: 'Sat' },
+  { value: '7', label: 'Sun' },
+];
 
 export const CreateRequestPage = () => {
   const navigate = useNavigate();
@@ -17,13 +44,20 @@ export const CreateRequestPage = () => {
   // Get initial values from location state (if coming from room card)
   const initialCapacity = location.state?.capacity || '';
 
-  const [formData, setFormData] = useState({
+  const [bookingType, setBookingType] = useState<BookingType>('single');
+
+  const [formData, setFormData] = useState<FormState>({
     required_capacity: initialCapacity.toString(),
     purpose: '',
     notes: '',
     booking_date: '',
+    end_date: '',
     start_time: '',
     end_time: '',
+    is_recurring: false,
+    recurring_type: 'weekly' as const,
+    recurring_days: [] as string[],
+    recurring_end_date: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -31,31 +65,74 @@ export const CreateRequestPage = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleDayToggle = (day: string) => {
+    setFormData((prev) => {
+      const currentDays = prev.recurring_days;
+      if (currentDays.includes(day)) {
+        return { ...prev, recurring_days: currentDays.filter((d) => d !== day) };
+      }
+      return { ...prev, recurring_days: [...currentDays, day] };
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    try {
-      await createRequest.mutateAsync({
-        required_capacity: parseInt(formData.required_capacity),
-        purpose: formData.purpose,
-        notes: formData.notes || undefined,
-        booking_date: formData.booking_date,
-        start_time: formData.start_time,
-        end_time: formData.end_time,
-      });
+    const submitData: CreateRequestInput = {
+      required_capacity: parseInt(formData.required_capacity),
+      purpose: formData.purpose,
+      notes: formData.notes || undefined,
+      booking_date: formData.booking_date,
+      start_time: formData.start_time,
+      end_time: formData.end_time,
+    };
 
+    // Multi-day booking
+    if (bookingType === 'multi' && formData.end_date) {
+      submitData.end_date = formData.end_date;
+    }
+
+    // Recurring booking
+    if (bookingType === 'recurring') {
+      submitData.is_recurring = true;
+      submitData.recurring_type = formData.recurring_type;
+      submitData.recurring_days = formData.recurring_days.join(',');
+      if (formData.recurring_end_date) {
+        submitData.recurring_end_date = formData.recurring_end_date;
+      }
+    }
+
+    try {
+      await createRequest.mutateAsync(submitData);
       navigate('/user/requests');
-    } catch (error) {
+    } catch {
       // Error handled in hook
     }
   };
 
-  const isFormValid = 
+  const isSingleDayValid = 
     formData.required_capacity &&
     formData.purpose &&
     formData.booking_date &&
     formData.start_time &&
     formData.end_time;
+
+  const isMultiDayValid = 
+    isSingleDayValid &&
+    formData.end_date &&
+    formData.end_date > formData.booking_date;
+
+  const isRecurringValid = 
+    isSingleDayValid &&
+    formData.recurring_days.length > 0 &&
+    formData.recurring_end_date &&
+    formData.recurring_end_date > formData.booking_date;
+
+  const isFormValid = bookingType === 'single' 
+    ? isSingleDayValid 
+    : bookingType === 'multi' 
+      ? isMultiDayValid 
+      : isRecurringValid;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -82,6 +159,40 @@ export const CreateRequestPage = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Booking Type Selector */}
+            <div className="space-y-2">
+              <Label>Booking Type <span className="text-destructive">*</span></Label>
+              <div className="grid grid-cols-3 gap-4">
+                <Button
+                  type="button"
+                  variant={bookingType === 'single' ? 'default' : 'outline'}
+                  className="justify-start"
+                  onClick={() => setBookingType('single')}
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Single Day
+                </Button>
+                <Button
+                  type="button"
+                  variant={bookingType === 'multi' ? 'default' : 'outline'}
+                  className="justify-start"
+                  onClick={() => setBookingType('multi')}
+                >
+                  <CalendarDays className="h-4 w-4 mr-2" />
+                  Multi-Day
+                </Button>
+                <Button
+                  type="button"
+                  variant={bookingType === 'recurring' ? 'default' : 'outline'}
+                  className="justify-start"
+                  onClick={() => setBookingType('recurring')}
+                >
+                  <Repeat className="h-4 w-4 mr-2" />
+                  Recurring
+                </Button>
+              </div>
+            </div>
+
             {/* Purpose */}
             <div className="space-y-2">
               <Label htmlFor="purpose">
@@ -117,10 +228,10 @@ export const CreateRequestPage = () => {
               </p>
             </div>
 
-            {/* Booking Date */}
+            {/* Start Date */}
             <div className="space-y-2">
               <Label htmlFor="booking_date">
-                Booking Date <span className="text-destructive">*</span>
+                {bookingType === 'recurring' ? 'Start Date' : 'Booking Date'} <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="booking_date"
@@ -132,6 +243,27 @@ export const CreateRequestPage = () => {
                 required
               />
             </div>
+
+            {/* Multi-Day: End Date */}
+            {bookingType === 'multi' && (
+              <div className="space-y-2">
+                <Label htmlFor="end_date">
+                  End Date <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="end_date"
+                  name="end_date"
+                  type="date"
+                  value={formData.end_date}
+                  onChange={handleChange}
+                  min={formData.booking_date || format(new Date(), 'yyyy-MM-dd')}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  The booking will run from the start date to the end date (inclusive)
+                </p>
+              </div>
+            )}
 
             {/* Time Range */}
             <div className="grid grid-cols-2 gap-4">
@@ -162,6 +294,80 @@ export const CreateRequestPage = () => {
                 />
               </div>
             </div>
+
+            {/* Recurring Options */}
+            {bookingType === 'recurring' && (
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <Repeat className="h-4 w-4" />
+                  <Label className="text-base">Recurring Settings</Label>
+                </div>
+
+                {/* Recurring Type */}
+                <div className="space-y-2">
+                  <Label>Recurring Pattern <span className="text-destructive">*</span></Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['daily', 'weekly', 'monthly'].map((type) => (
+                      <Button
+                        key={type}
+                        type="button"
+                        variant={formData.recurring_type === type ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setFormData(prev => ({ ...prev, recurring_type: type as CreateRequestInput['recurring_type'] }))}
+                      >
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Days of Week (for weekly) */}
+                {formData.recurring_type === 'weekly' && (
+                  <div className="space-y-2">
+                    <Label>Days of Week <span className="text-destructive">*</span></Label>
+                    <div className="flex flex-wrap gap-2">
+                      {DAYS_OF_WEEK.map((day) => (
+                        <label
+                          key={day.value}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                            formData.recurring_days.includes(day.value)
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'hover:bg-muted'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formData.recurring_days.includes(day.value)}
+                            onChange={() => handleDayToggle(day.value)}
+                            className="w-4 h-4 rounded border-current"
+                          />
+                          <span className="text-sm">{day.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recurring End Date */}
+                <div className="space-y-2">
+                  <Label htmlFor="recurring_end_date">
+                    Recurring End Date <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="recurring_end_date"
+                    name="recurring_end_date"
+                    type="date"
+                    value={formData.recurring_end_date}
+                    onChange={handleChange}
+                    min={formData.booking_date || format(new Date(), 'yyyy-MM-dd')}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The recurring booking will end on this date
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Notes */}
             <div className="space-y-2">

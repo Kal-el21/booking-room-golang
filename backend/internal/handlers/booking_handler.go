@@ -136,33 +136,69 @@ func (h *BookingHandler) GetCalendar(c *gin.Context) {
 
 	// Add bookings
 	for _, booking := range bookings {
+		// Convert EndDate and RecurringEndDate to strings or nil
+		var endDateStr *string
+		if booking.Request.EndDate != nil {
+			s := booking.Request.EndDate.Format("2006-01-02")
+			endDateStr = &s
+		}
+
+		var recurringEndDateStr *string
+		if booking.Request.RecurringEndDate != nil {
+			s := booking.Request.RecurringEndDate.Format("2006-01-02")
+			recurringEndDateStr = &s
+		}
+
 		responses = append(responses, map[string]interface{}{
-			"id":        booking.ID,
-			"type":      "booking",
-			"title":     booking.Request.Purpose,
-			"start":     booking.BookingDate.Format("2006-01-02") + "T" + booking.StartTime.Format("15:04:05"),
-			"end":       booking.BookingDate.Format("2006-01-02") + "T" + booking.EndTime.Format("15:04:05"),
-			"room_id":   booking.RoomID,
-			"room_name": booking.Room.RoomName,
-			"status":    string(booking.Status),
-			"user_name": booking.Request.User.Name,
-			"purpose":   booking.Request.Purpose,
+			"id":                 booking.ID,
+			"type":               "booking",
+			"title":              booking.Request.Purpose,
+			"start":              booking.BookingDate.Format("2006-01-02") + "T" + booking.StartTime.Format("15:04:05"),
+			"end":                booking.BookingDate.Format("2006-01-02") + "T" + booking.EndTime.Format("15:04:05"),
+			"room_id":            booking.RoomID,
+			"room_name":          booking.Room.RoomName,
+			"status":             string(booking.Status),
+			"user_name":          booking.Request.User.Name,
+			"purpose":            booking.Request.Purpose,
+			"end_date":           endDateStr,
+			"is_recurring":       booking.Request.IsRecurring,
+			"recurring_type":     booking.Request.RecurringType,
+			"recurring_days":     booking.Request.RecurringDays,
+			"recurring_end_date": recurringEndDateStr,
 		})
 	}
 
 	// Add pending requests
 	for _, request := range requests {
+		// Convert EndDate and RecurringEndDate to strings or nil
+		var endDateStr *string
+		if request.EndDate != nil {
+			s := request.EndDate.Format("2006-01-02")
+			endDateStr = &s
+		}
+
+		var recurringEndDateStr *string
+		if request.RecurringEndDate != nil {
+			s := request.RecurringEndDate.Format("2006-01-02")
+			recurringEndDateStr = &s
+		}
+
 		responses = append(responses, map[string]interface{}{
-			"id":        request.ID,
-			"type":      "request",
-			"title":     request.Purpose,
-			"start":     request.BookingDate.Format("2006-01-02") + "T" + request.StartTime.Format("15:04:05"),
-			"end":       request.BookingDate.Format("2006-01-02") + "T" + request.EndTime.Format("15:04:05"),
-			"room_id":   0,
-			"room_name": "",
-			"status":    string(request.Status),
-			"user_name": request.User.Name,
-			"purpose":   request.Purpose,
+			"id":                 request.ID,
+			"type":               "request",
+			"title":              request.Purpose,
+			"start":              request.BookingDate.Format("2006-01-02") + "T" + request.StartTime.Format("15:04:05"),
+			"end":                request.BookingDate.Format("2006-01-02") + "T" + request.EndTime.Format("15:04:05"),
+			"room_id":            0,
+			"room_name":          "",
+			"status":             string(request.Status),
+			"user_name":          request.User.Name,
+			"purpose":            request.Purpose,
+			"end_date":           endDateStr,
+			"is_recurring":       request.IsRecurring,
+			"recurring_type":     request.RecurringType,
+			"recurring_days":     request.RecurringDays,
+			"recurring_end_date": recurringEndDateStr,
 		})
 	}
 

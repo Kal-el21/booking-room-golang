@@ -52,13 +52,13 @@ db-reset: db-drop db-create ## Reset database
 
 # Docker commands (untuk nanti)
 docker-up: ## Start docker containers
-	docker-compose up -d
+	docker compose up -d
 
 docker-down: ## Stop docker containers
-	docker-compose down
+	docker compose down
 
 docker-logs: ## View docker logs
-	docker-compose logs -f
+	docker compose logs -f
 
 docker-rebuild: ## Rebuild docker containers
-	docker-compose up -d --build
+	docker compose up -d --build

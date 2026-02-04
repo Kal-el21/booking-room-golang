@@ -8,14 +8,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Calendar, Clock, Users, CheckCircle, XCircle, User, DoorOpen } from 'lucide-react';
+import { FileText, Calendar, Clock, Users, CheckCircle, XCircle, User, DoorOpen, Repeat } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { formatDateRange, formatTimeRange, getBookingTypeLabel } from '@/utils/dateHelpers';
+import type { RoomRequest, RequestFilters } from '@/types';
 
 export const PendingRequestsPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<any>(null);
+  const [selectedRequest, setSelectedRequest] = useState<RoomRequest | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [rejectReason, setRejectReason] = useState('');
 
@@ -29,7 +31,7 @@ export const PendingRequestsPage = () => {
   const { data: requestsData, isLoading } = useRequests({
     page: 1,
     page_size: 100,
-    status: statusFilter !== 'all' ? (statusFilter as any) : undefined,
+    status: statusFilter !== 'all' ? (statusFilter as RequestFilters['status']) : undefined,
   });
 
   const { data: availableRooms, isLoading: loadingRooms } = useAvailableRooms(
@@ -39,13 +41,13 @@ export const PendingRequestsPage = () => {
   const approveRequest = useApproveRequest();
   const rejectRequest = useRejectRequest();
 
-  const handleApproveClick = (request: any) => {
+  const handleApproveClick = (request: RoomRequest) => {
     setSelectedRequest(request);
     setSelectedRoomId('');
     setApproveDialogOpen(true);
   };
 
-  const handleRejectClick = (request: any) => {
+  const handleRejectClick = (request: RoomRequest) => {
     setSelectedRequest(request);
     setRejectReason('');
     setRejectDialogOpen(true);
@@ -62,7 +64,7 @@ export const PendingRequestsPage = () => {
       setApproveDialogOpen(false);
       setSelectedRequest(null);
       setSelectedRoomId('');
-    } catch (error) {
+    } catch {
       // Error handled in hook
     }
   };
@@ -78,13 +80,13 @@ export const PendingRequestsPage = () => {
       setRejectDialogOpen(false);
       setSelectedRequest(null);
       setRejectReason('');
-    } catch (error) {
+    } catch {
       // Error handled in hook
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, any> = {
+    const variants: Record<string, { variant: 'default' | 'outline' | 'secondary' | 'destructive'; label: string }> = {
       pending: { variant: 'outline', label: 'Pending' },
       approved: { variant: 'default', label: 'Approved' },
       rejected: { variant: 'destructive', label: 'Rejected' },
@@ -208,14 +210,27 @@ export const PendingRequestsPage = () => {
                         <User className="h-4 w-4" />
                         <span className="font-medium">{request.user_name || 'Unknown User'}</span>
                       </div>
+                      {/* Booking Type Badge */}
+                      {(request.is_recurring || request.end_date) && (
+                        <div className="flex items-center gap-1">
+                          {request.is_recurring ? (
+                            <Repeat className="h-3 w-3 text-primary" />
+                          ) : (
+                            <Calendar className="h-3 w-3 text-primary" />
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            {getBookingTypeLabel(request)}
+                          </Badge>
+                        </div>
+                      )}
                       <CardDescription className="flex items-center gap-4 text-sm flex-wrap">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {format(parseISO(request.booking_date), 'MMM dd, yyyy')}
+                          {formatDateRange(request)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {request.start_time} - {request.end_time}
+                          {formatTimeRange(request.start_time, request.end_time)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Users className="h-3 w-3" />
@@ -290,8 +305,8 @@ export const PendingRequestsPage = () => {
                   <span className="font-medium">Request:</span> {selectedRequest.purpose}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {format(parseISO(selectedRequest.booking_date), 'MMM dd, yyyy')} •{' '}
-                  {selectedRequest.start_time} - {selectedRequest.end_time}
+                  {formatDateRange(selectedRequest)} • {' '}
+                  {formatTimeRange(selectedRequest.start_time, selectedRequest.end_time)}
                 </div>
               </div>
 

@@ -219,9 +219,22 @@ func (r *BookingRepository) GetCalendarBookings(startDate, endDate time.Time, ro
 func (r *RequestRepository) GetCalendarRequests(startDate, endDate time.Time, roomID *uint) ([]models.RoomRequest, error) {
 	var requests []models.RoomRequest
 
+	// Query to fetch pending requests that overlap with the calendar date range
+	// This includes:
+	// 1. Requests where booking_date is within the range (single day or first day of multi-day)
+	// 2. Requests where end_date is within the range (last day of multi-day)
+	// 3. Requests where the entire range overlaps with the calendar range
+	// 4. Recurring requests where the recurring pattern falls within the range
 	query := r.db.Model(&models.RoomRequest{}).
-		Where("booking_date >= ? AND booking_date <= ?", startDate, endDate).
-		Where("status = ?", models.RequestPending)
+		Where("status = ?", models.RequestPending).
+		Where(
+			"(booking_date >= ? AND booking_date <= ?) OR "+
+				"(end_date IS NOT NULL AND end_date >= ? AND end_date <= ?) OR "+
+				"(booking_date <= ? AND (end_date IS NULL OR end_date >= ?))",
+			startDate, endDate,
+			startDate, endDate,
+			endDate, startDate,
+		)
 
 	err := query.
 		Preload("User").
