@@ -66,3 +66,12 @@ docker-rebuild: ## Rebuild docker containers
 seed-admin: ## Create admin user (email: admin@indore.co.id, division: IT, password: rJsm8kFce4)
 	@echo "Creating admin user..."
 	go run cmd/seed_admin/main.go
+
+docker-seed-admin: ## Create admin user inside Docker container (requires containers running)
+	@echo "Creating admin user in Docker container..."
+	docker exec -it room-booking-api ./seed_admin
+
+docker-rebuild-seed: ## Rebuild backend with seed_admin and run seed
+	docker compose up -d --build backend
+	@sleep 3
+	docker exec -it room-booking-api ./seed_admin

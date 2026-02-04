@@ -19,6 +19,9 @@ COPY . .
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/api
 
+# Build seed_admin command
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o seed_admin ./cmd/seed_admin
+
 # Stage 2: Runtime
 FROM alpine:latest
 
@@ -30,8 +33,9 @@ ENV TZ=Asia/Jakarta
 
 WORKDIR /root/
 
-# Copy binary from builder
+# Copy binaries from builder
 COPY --from=builder /app/main .
+COPY --from=builder /app/seed_admin .
 
 # Copy .env file (optional, better use docker-compose env)
 # COPY .env .
