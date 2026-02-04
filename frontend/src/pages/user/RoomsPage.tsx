@@ -23,10 +23,10 @@ const RoomsPageContent = () => {
     min_capacity: minCapacity ? parseInt(minCapacity) : undefined,
   });
 
-  const filteredRooms = roomsData?.data.filter((room) =>
+  const filteredRooms = (roomsData?.data || []).filter((room) =>
     room.room_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     room.location.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  );
 
   const getStatusBadge = (status: string) => {
     const config = {

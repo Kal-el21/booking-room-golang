@@ -4,7 +4,7 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { DoorOpen, Users, Calendar, Activity } from 'lucide-react';
 import { useRooms } from '@/hooks/useRooms';
 import { useUsers } from '@/hooks/useUsers';
-import { useBookings } from '@/hooks/useBookings';
+import { useAllBookings } from '@/hooks/useBookings';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -31,7 +31,7 @@ const AdminDashboardContent = () => {
     page_size: 100,
   });
 
-  const { data: bookingsData, isLoading: bookingsLoading } = useBookings({
+  const { data: bookingsData, isLoading: bookingsLoading } = useAllBookings({
     page: 1,
     page_size: 100,
   });
