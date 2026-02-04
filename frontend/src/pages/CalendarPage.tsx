@@ -384,7 +384,7 @@ export const CalendarPage = () => {
                     <div className="text-sm text-muted-foreground">
                       <p>Type: {selectedEvent.recurring_type?.charAt(0).toUpperCase() + selectedEvent.recurring_type?.slice(1)} recurring</p>
                       {selectedEvent.recurring_days && (
-                        <p>Days: {selectedEvent.recurring_days.split(',').map(d => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][parseInt(d)-1]).join(', ')}</p>
+                        <p>Days: {selectedEvent.recurring_days.split(',').map((d: string) => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][parseInt(d)-1] || '').join(', ')}</p>
                       )}
                       {selectedEvent.recurring_end_date && (
                         <p>Until: {format(parseISO(selectedEvent.recurring_end_date), 'MMM dd, yyyy')}</p>

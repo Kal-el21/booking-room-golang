@@ -138,6 +138,7 @@ export interface Booking {
   booked_by: number;
   booked_by_user?: UserResponse;
   booking_date: string;
+  end_date?: string; // Multi-day booking support
   start_time: string;
   end_time: string;
   status: 'confirmed' | 'cancelled' | 'completed';

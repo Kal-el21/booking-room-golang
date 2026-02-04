@@ -4,7 +4,7 @@ import type { ApiResponse } from '@/types';
 const CALENDAR_PREFIX = '/api/v1/calendar';
 
 export interface CalendarEvent {
-  id: number;
+  id: number | string;
   title: string;
   start: string;
   end: string;
