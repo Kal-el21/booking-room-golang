@@ -24,6 +24,7 @@ export interface RegisterRequest {
   email: string;
   password: string;
   role: UserRole;
+  division?: string;
 }
 
 export interface AuthResponse {
@@ -67,7 +68,8 @@ export interface Room {
 export interface RoomRequest {
   id: number;
   user_id: number;
-  user_name?: string; // Tambahan untuk GA view
+  user_name?: string; // Added for GA view
+  user?: UserResponse; // User object from backend
   required_capacity: number;
   purpose: string;
   notes?: string;
@@ -103,14 +105,39 @@ export interface CreateRequestInput {
 }
 
 // Booking Types
+
+export interface RoomResponse {
+  id: number;
+  room_name: string;
+  capacity: number;
+  location: string;
+  description?: string;
+  status: 'available' | 'occupied' | 'maintenance';
+  is_active: boolean;
+  created_by: number;
+  created_at: string;
+  creator?: UserResponse;
+}
+
+export interface UserResponse {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  division?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface Booking {
   id: number;
   request_id: number;
   room_id: number;
   room_name?: string;
+  room?: RoomResponse;
   booked_by: number;
+  booked_by_user?: UserResponse;
   booking_date: string;
-  end_date?: string; // Multi-day booking end date
   start_time: string;
   end_time: string;
   status: 'confirmed' | 'cancelled' | 'completed';

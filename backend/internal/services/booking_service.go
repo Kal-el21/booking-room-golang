@@ -152,3 +152,26 @@ func (s *BookingService) notifyBookingCancelled(booking *models.RoomBooking) {
 	}
 	s.notificationSvc.CreateNotification(notification) // Broadcasts to SSE
 }
+
+// AutoCompleteOldBookings marks bookings as completed if the booking date has passed
+func (s *BookingService) AutoCompleteOldBookings() error {
+	today := time.Now().Truncate(24 * time.Hour)
+
+	// Find all confirmed bookings with booking_date < today
+	bookings, err := s.bookingRepo.GetOldBookings(today)
+	if err != nil {
+		return err
+	}
+
+	for _, booking := range bookings {
+		if booking.Status == models.BookingConfirmed {
+			booking.Status = models.BookingCompleted
+			if err := s.bookingRepo.Update(booking); err != nil {
+				// Log error but continue with other bookings
+				continue
+			}
+		}
+	}
+
+	return nil
+}

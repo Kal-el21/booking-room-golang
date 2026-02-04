@@ -243,3 +243,14 @@ func (r *RequestRepository) GetCalendarRequests(startDate, endDate time.Time, ro
 
 	return requests, err
 }
+
+// GetOldBookings gets all confirmed bookings with booking_date before the given date
+func (r *BookingRepository) GetOldBookings(beforeDate time.Time) ([]*models.RoomBooking, error) {
+	var bookings []*models.RoomBooking
+	err := r.db.
+		Where("booking_date < ? AND status = ?", beforeDate, models.BookingConfirmed).
+		Preload("Room").
+		Preload("Request").
+		Find(&bookings).Error
+	return bookings, err
+}

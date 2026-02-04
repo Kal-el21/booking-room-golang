@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarDays, Loader2, Moon, Sun } from 'lucide-react';
 import type { UserRole } from '@/types';
 
@@ -19,6 +18,7 @@ export const RegisterPage = () => {
     email: '',
     password: '',
     role: 'user' as UserRole,
+    division: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,7 +69,7 @@ export const RegisterPage = () => {
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
               <Input
@@ -114,6 +114,19 @@ export const RegisterPage = () => {
               <p className="text-xs text-muted-foreground">
                 Minimum 6 characters
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="division">Division (Optional)</Label>
+              <Input
+                id="division"
+                name="division"
+                type="text"
+                placeholder="e.g., IT, HR, Finance"
+                value={formData.division}
+                onChange={handleChange}
+                disabled={isLoading}
+              />
             </div>
 
             {/* <div className="space-y-2">

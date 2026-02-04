@@ -34,6 +34,12 @@ export const ManageRoomsPage = () => {
     status: statusFilter !== 'all' ? (statusFilter as any) : undefined,
   });
 
+  // Fetch all rooms for stats (without status filter)
+  const { data: allRoomsData } = useRooms({
+    page: 1,
+    page_size: 1000,
+  });
+
   const createRoom = useCreateRoom();
   const updateRoom = useUpdateRoom();
   const deleteRoom = useDeleteRoom();
@@ -135,6 +141,7 @@ export const ManageRoomsPage = () => {
     );
   }
 
+  const allRooms = allRoomsData?.data || [];
   const rooms = roomsData?.data || [];
   const filteredRooms = rooms.filter((room) =>
     room.room_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -200,7 +207,7 @@ export const ManageRoomsPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{rooms.length}</div>
+            <div className="text-2xl font-bold">{allRooms.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -211,7 +218,7 @@ export const ManageRoomsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {rooms.filter((r) => r.status === 'available').length}
+              {allRooms.filter((r) => r.status === 'available').length}
             </div>
           </CardContent>
         </Card>
@@ -223,7 +230,7 @@ export const ManageRoomsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {rooms.filter((r) => r.status === 'occupied').length}
+              {allRooms.filter((r) => r.status === 'occupied').length}
             </div>
           </CardContent>
         </Card>
@@ -235,7 +242,7 @@ export const ManageRoomsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {rooms.filter((r) => r.status === 'maintenance').length}
+              {allRooms.filter((r) => r.status === 'maintenance').length}
             </div>
           </CardContent>
         </Card>

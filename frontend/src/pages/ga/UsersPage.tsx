@@ -12,10 +12,17 @@ export const UsersPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
+  // Fetch all users for stats (unfiltered)
+  const { data: allUsersData } = useUsers({
+    page: 1,
+    page_size: 1000,
+  });
+
+  // Fetch filtered users for display
   const { data: usersData, isLoading } = useUsers({
     page: 1,
     page_size: 100,
-    role: roleFilter !== 'all' ? roleFilter : undefined,
+    role: roleFilter !== 'all' ? roleFilter as any : undefined,
   });
 
   const getRoleBadge = (role: string) => {
@@ -37,11 +44,13 @@ export const UsersPage = () => {
     );
   }
 
+  const allUsers = allUsersData?.data || [];
   const users = usersData?.data || [];
   const filteredUsers = users.filter(
     (user) =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      (roleFilter === 'all' || user.role === roleFilter) &&
+      (user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -97,7 +106,7 @@ export const UsersPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{users.length}</div>
+            <div className="text-2xl font-bold">{allUsers.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -108,7 +117,7 @@ export const UsersPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {users.filter((u) => u.role === 'user').length}
+              {allUsers.filter((u) => u.role === 'user').length}
             </div>
           </CardContent>
         </Card>
@@ -120,7 +129,7 @@ export const UsersPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {users.filter((u) => u.role === 'room_admin').length}
+              {allUsers.filter((u) => u.role === 'room_admin').length}
             </div>
           </CardContent>
         </Card>
@@ -132,7 +141,7 @@ export const UsersPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {users.filter((u) => u.role === 'GA').length}
+              {allUsers.filter((u) => u.role === 'GA').length}
             </div>
           </CardContent>
         </Card>

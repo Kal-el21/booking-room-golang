@@ -79,6 +79,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 			// Booking routes (read-only for users, manage for GA)
 			protected.GET("/bookings", bookingHandler.ListBookings)
 			protected.GET("/bookings/:id", bookingHandler.GetBooking)
+			protected.POST("/bookings/auto-complete", bookingHandler.AutoCompleteBookings)
 
 			// Notification routes
 			protected.GET("/notifications", notificationHandler.GetNotifications)

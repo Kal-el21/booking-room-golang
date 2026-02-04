@@ -7,6 +7,7 @@ export const useRooms = (filters?: RoomFilters) => {
     queryKey: ['rooms', filters],
     queryFn: () => roomService.getRooms(filters),
     retry: 1,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 };
 

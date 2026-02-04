@@ -104,6 +104,7 @@ type RoomBookingResponse struct {
 	ID           uint          `json:"id"`
 	RequestID    uint          `json:"request_id"`
 	RoomID       uint          `json:"room_id"`
+	RoomName     string        `json:"room_name"`
 	Room         *RoomResponse `json:"room,omitempty"`
 	BookedBy     uint          `json:"booked_by"`
 	BookedByUser *UserResponse `json:"booked_by_user,omitempty"`
@@ -121,6 +122,7 @@ func (b *RoomBooking) ToResponse() RoomBookingResponse {
 		ID:          b.ID,
 		RequestID:   b.RequestID,
 		RoomID:      b.RoomID,
+		RoomName:    b.Room.RoomName,
 		BookedBy:    b.BookedBy,
 		BookingDate: b.BookingDate.Format("2006-01-02"),
 		StartTime:   b.StartTime.Format("15:04"),

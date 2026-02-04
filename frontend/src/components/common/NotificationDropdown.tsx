@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Bell, CheckCheck, Trash2, Circle, Wifi, WifiOff } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { Notification } from '@/types';
 
 export const NotificationDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -22,7 +21,7 @@ export const NotificationDropdown = () => {
     page: 1,
     page_size: 20,
   });
-  const { unreadCount, isConnected, notifications: realtimeNotifications } = useNotificationContext();
+  const { unreadCount, isConnected } = useNotificationContext();
   const markAsRead = useMarkAsRead();
   const markAllAsRead = useMarkAllAsRead();
   const deleteNotification = useDeleteNotification();
@@ -50,7 +49,7 @@ export const NotificationDropdown = () => {
     await deleteNotification.mutateAsync(id);
   };
 
-  const getNotificationIcon = (type: string) => {
+  const getNotificationIcon = () => {
     return <Circle className="h-2 w-2" fill="currentColor" />;
   };
 
@@ -84,9 +83,9 @@ export const NotificationDropdown = () => {
           <div className="flex items-center gap-2">
             <span>Notifications</span>
             {isConnected ? (
-              <Wifi className="h-3 w-3 text-green-600" title="Connected" />
+              <Wifi className="h-3 w-3 text-green-600" aria-label="Connected" />
             ) : (
-              <WifiOff className="h-3 w-3 text-red-600" title="Disconnected" />
+              <WifiOff className="h-3 w-3 text-red-600" aria-label="Disconnected" />
             )}
           </div>
           {unreadCount > 0 && (
@@ -130,7 +129,7 @@ export const NotificationDropdown = () => {
                 <div className="flex items-start justify-between w-full gap-2">
                   <div className="flex items-start gap-2 flex-1 min-w-0">
                     <div className={`mt-1 ${getNotificationColor(notification.type)}`}>
-                      {getNotificationIcon(notification.type)}
+                      {getNotificationIcon()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

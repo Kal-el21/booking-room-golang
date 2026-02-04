@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Users, Plus, Edit, Trash2, Search, Mail, KeyRound } from 'lucide-react';
+import { Users, Edit, Trash2, Search, Mail, KeyRound } from 'lucide-react';
 import type { User, UserRole } from '@/types';
 import { userService } from '@/services/user.service';
 import { toast } from 'sonner';
@@ -131,8 +131,9 @@ export const ManageUsersPage = () => {
   const users = usersData?.data || [];
   const filteredUsers = users.filter(
     (user) =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      (roleFilter === 'all' || user.role === roleFilter) &&
+      (user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const isFormValid = formData.name.trim();

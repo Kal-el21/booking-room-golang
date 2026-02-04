@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useRooms } from '@/hooks/useRooms';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,16 +10,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DoorOpen, Users, MapPin, Search, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-export const RoomsPage = () => {
+const RoomsPageContent = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [minCapacity, setMinCapacity] = useState<string>('');
 
-  const { data: roomsData, isLoading } = useRooms({
+  const { data: roomsData, isLoading, error } = useRooms({
     page: 1,
     page_size: 50,
-    status: statusFilter !== 'all' ? (statusFilter as any) : undefined,
+    status: statusFilter !== 'all' ? (statusFilter as 'available' | 'occupied' | 'maintenance') : undefined,
     min_capacity: minCapacity ? parseInt(minCapacity) : undefined,
   });
 
@@ -33,13 +34,13 @@ export const RoomsPage = () => {
       occupied: { variant: 'secondary' as const, color: 'text-yellow-600', label: 'Occupied' },
       maintenance: { variant: 'destructive' as const, color: 'text-red-600', label: 'Maintenance' },
     };
-    const { variant, color, label } = config[status as keyof typeof config] || config.available;
+    const { variant, label } = config[status as keyof typeof config] || config.available;
     return <Badge variant={variant}>{label}</Badge>;
   };
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <Skeleton className="h-10 w-64" />
           <div className="flex gap-2">
@@ -64,8 +65,30 @@ export const RoomsPage = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6 p-6">
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <DoorOpen className="h-16 w-16 text-red-400 mb-4" />
+            <h3 className="text-lg font-semibold text-red-700 mb-2">Failed to load rooms</h3>
+            <p className="text-sm text-red-600 text-center">
+              {error instanceof Error ? error.message : 'An unexpected error occurred'}
+            </p>
+            <Button 
+              className="mt-4" 
+              onClick={() => window.location.reload()}
+            >
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -182,5 +205,13 @@ export const RoomsPage = () => {
         </div>
       )}
     </div>
+  );
+};
+
+export const RoomsPage = () => {
+  return (
+    <ErrorBoundary>
+      <RoomsPageContent />
+    </ErrorBoundary>
   );
 };

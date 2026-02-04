@@ -100,6 +100,7 @@ func (r *RoomRequest) GetDuration() int {
 type RoomRequestResponse struct {
 	ID               uint                  `json:"id"`
 	UserID           uint                  `json:"user_id"`
+	UserName         string                `json:"user_name"`
 	User             *UserResponse         `json:"user,omitempty"`
 	RequiredCapacity int                   `json:"required_capacity"`
 	Purpose          string                `json:"purpose"`
@@ -126,6 +127,7 @@ func (r *RoomRequest) ToResponse() RoomRequestResponse {
 	response := RoomRequestResponse{
 		ID:               r.ID,
 		UserID:           r.UserID,
+		UserName:         r.User.Name,
 		RequiredCapacity: r.RequiredCapacity,
 		Purpose:          r.Purpose,
 		Notes:            r.Notes,

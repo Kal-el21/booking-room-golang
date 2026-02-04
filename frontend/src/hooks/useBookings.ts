@@ -5,8 +5,16 @@ import type { ApiError } from '@/types';
 
 export const useBookings = (filters?: BookingFilters) => {
   return useQuery({
-    queryKey: ['bookings', filters],
+    queryKey: ['bookings', 'my', filters],
     queryFn: () => bookingService.getMyBookings(filters),
+    retry: 1,
+  });
+};
+
+export const useAllBookings = (filters?: BookingFilters) => {
+  return useQuery({
+    queryKey: ['bookings', 'all', filters],
+    queryFn: () => bookingService.getAllBookings(filters),
     retry: 1,
   });
 };

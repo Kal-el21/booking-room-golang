@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,37 @@ import { Switch } from '@/components/ui/switch';
 import { CalendarDays, Loader2, Moon, Sun } from 'lucide-react';
 
 export const LoginPage = () => {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
 
-  console.log("LoginPage rendered");
+  // Redirect logged-in users to their role-based dashboard
+  useEffect(() => {
+    if (user) {
+      const dashboardPath = getDashboardPath(user.role);
+      navigate(dashboardPath, { replace: true });
+    }
+  }, [user, navigate]);
+
+  const getDashboardPath = (role: string) => {
+    switch (role) {
+      case 'user':
+        return '/user/dashboard';
+      case 'GA':
+        return '/ga/dashboard';
+      case 'room_admin':
+        return '/admin/dashboard';
+      default:
+        return '/user/dashboard';
+    }
+  };
+
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    email: string;
+    password: string;
+    remember_me: boolean;
+  }>({
     email: '',
     password: '',
     remember_me: false,
@@ -27,7 +52,7 @@ export const LoginPage = () => {
 
     try {
       await login(formData);
-    } catch (error) {
+    } catch {
       // Error handled in AuthContext
     } finally {
       setIsLoading(false);
@@ -36,7 +61,7 @@ export const LoginPage = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev: typeof formData) => ({ ...prev, [name]: value }));
   };
 
   return (
@@ -69,7 +94,7 @@ export const LoginPage = () => {
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

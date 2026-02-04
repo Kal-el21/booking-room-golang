@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useBookings, useCancelBooking } from '@/hooks/useBookings';
+import { useAllBookings, useCancelBooking } from '@/hooks/useBookings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,13 +19,13 @@ export const AllBookingsPage = () => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   // Fetch all bookings for stats (unfiltered)
-  const { data: allBookingsData } = useBookings({
+  const { data: allBookingsData } = useAllBookings({
     page: 1,
     page_size: 1000,
   });
 
   // Fetch filtered bookings for display
-  const { data: bookingsData, isLoading } = useBookings({
+  const { data: bookingsData, isLoading } = useAllBookings({
     page: 1,
     page_size: 100,
     status: statusFilter !== 'all' ? (statusFilter as Booking['status']) : undefined,

@@ -64,6 +64,9 @@ func (h *BookingHandler) ListBookings(c *gin.Context) {
 		return
 	}
 
+	// Auto-complete old bookings (non-blocking, runs in background)
+	go h.bookingService.AutoCompleteOldBookings()
+
 	var responses []interface{}
 	for _, booking := range bookings {
 		responses = append(responses, booking.ToResponse())
@@ -203,4 +206,14 @@ func (h *BookingHandler) GetCalendar(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, "Calendar retrieved successfully", responses)
+}
+
+// AutoCompleteBookings marks old bookings as completed
+// @route POST /api/v1/bookings/auto-complete
+func (h *BookingHandler) AutoCompleteBookings(c *gin.Context) {
+	if err := h.bookingService.AutoCompleteOldBookings(); err != nil {
+		utils.ErrorResponse(c, 500, "Failed to auto-complete bookings", err.Error())
+		return
+	}
+	utils.SuccessResponse(c, 200, "Old bookings marked as completed", nil)
 }
