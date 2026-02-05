@@ -28,6 +28,7 @@ func NewRequestService(
 	bookingRepo *repositories.BookingRepository,
 	roomRepo *repositories.RoomRepository,
 	notificationRepo *repositories.NotificationRepository,
+	notificationSvc *NotificationService,
 	userRepo *repositories.UserRepository,
 	db *gorm.DB,
 ) *RequestService {
@@ -36,7 +37,7 @@ func NewRequestService(
 		bookingRepo:      bookingRepo,
 		roomRepo:         roomRepo,
 		notificationRepo: notificationRepo,
-		notificationSvc:  NewNotificationService(notificationRepo),
+		notificationSvc:  notificationSvc,
 		userRepo:         userRepo,
 		db:               db,
 	}

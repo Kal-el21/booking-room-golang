@@ -151,6 +151,7 @@ export interface Notification {
   id: number;
   user_id: number;
   booking_id?: number;
+  request_id?: number;
   title: string;
   message: string;
   type: 'booking_confirmed' | 'reminder' | 'cancellation' | 'room_changed' | 'request_submitted' | 'request_approved' | 'request_rejected';

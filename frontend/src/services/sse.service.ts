@@ -24,7 +24,19 @@ export class SSEService {
         console.log('SSE: Connection established');
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
+        this.emit('connected', { timestamp: Date.now() });
       };
+
+      // Handle connected event
+      this.eventSource.addEventListener('connected', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('SSE: Received connected event:', data);
+          this.emit('connected', data);
+        } catch (error) {
+          console.error('SSE: Failed to parse connected event:', error);
+        }
+      });
 
       // Handle notification events
       this.eventSource.addEventListener('notification', (event) => {

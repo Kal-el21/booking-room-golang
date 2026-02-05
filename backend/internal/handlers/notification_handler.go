@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/middleware"
@@ -22,12 +23,20 @@ func NewNotificationHandler(notificationService *services.NotificationService) *
 }
 
 // StreamNotifications handles SSE connection for real-time notifications
-// @route GET /api/v1/notifications/stream?token=<jwt_token>
+// @route GET /api/v1/notifications/stream
 func (h *NotificationHandler) StreamNotifications(c *gin.Context) {
-	// Get token from query param
-	token := c.Query("token")
+	// Get token from Authorization header or query param (for compatibility)
+	token := c.GetHeader("Authorization")
+	if token != "" {
+		// Remove "Bearer " prefix if present
+		token = strings.TrimPrefix(token, "Bearer ")
+	} else {
+		// Fallback to query param
+		token = c.Query("token")
+	}
+
 	if token == "" {
-		c.JSON(401, gin.H{"error": "token required in query parameter"})
+		c.JSON(401, gin.H{"error": "token required in Authorization header or query parameter"})
 		return
 	}
 

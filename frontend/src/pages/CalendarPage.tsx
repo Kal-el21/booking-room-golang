@@ -4,6 +4,8 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -114,6 +116,14 @@ const expandCalendarEvent = (event: CalendarEvent, calendarStart: Date, calendar
 };
 
 export const CalendarPage = () => {
+  return (
+    <ErrorBoundary>
+      <CalendarPageContent />
+    </ErrorBoundary>
+  );
+};
+
+const CalendarPageContent = () => {
   const calendarRef = useRef<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState('dayGridMonth');

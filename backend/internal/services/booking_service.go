@@ -19,12 +19,13 @@ func NewBookingService(
 	bookingRepo *repositories.BookingRepository,
 	requestRepo *repositories.RequestRepository,
 	notificationRepo *repositories.NotificationRepository,
+	notificationSvc *NotificationService,
 ) *BookingService {
 	return &BookingService{
 		bookingRepo:      bookingRepo,
 		requestRepo:      requestRepo,
 		notificationRepo: notificationRepo,
-		notificationSvc:  NewNotificationService(notificationRepo),
+		notificationSvc:  notificationSvc,
 	}
 }
 

@@ -66,6 +66,11 @@ func GetSSEManager() *SSEManager {
 
 // run handles SSE manager operations
 func (m *SSEManager) run() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("SSE: Panic recovered in run(): %v", r)
+		}
+	}()
 	for {
 		select {
 		case client := <-m.register:
@@ -126,6 +131,11 @@ func (m *SSEManager) run() {
 
 // pingClients sends periodic ping to keep connections alive
 func (m *SSEManager) pingClients() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("SSE: Panic recovered in pingClients(): %v", r)
+		}
+	}()
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 

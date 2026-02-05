@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNotifications, useMarkAsRead, useMarkAllAsRead, useDeleteNotification } from '@/hooks/useNotifications';
 import { useNotificationContext } from '@/context/NotificationContext';
-import { Button } from '@/components/ui/button';
+import type { Notification } from '@/types';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
@@ -12,10 +14,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, CheckCheck, Trash2, Circle, Wifi, WifiOff } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, Wifi, WifiOff, RefreshCw, FileText, Calendar, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 export const NotificationDropdown = () => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const { data: notificationsData, isLoading, refetch } = useNotifications({
     page: 1,
@@ -49,21 +52,46 @@ export const NotificationDropdown = () => {
     await deleteNotification.mutateAsync(id);
   };
 
-  const getNotificationIcon = () => {
-    return <Circle className="h-2 w-2" fill="currentColor" />;
+  const handleNotificationClick = (notification: Notification) => {
+    // Mark as read if not already
+    if (!notification.is_read) {
+      handleMarkAsRead(notification.id);
+    }
+
+    // Navigate based on notification type
+    if (notification.booking_id) {
+      navigate(`/user/bookings/${notification.booking_id}`);
+    } else if (notification.request_id) {
+      navigate(`/user/requests/${notification.request_id}`);
+    }
+    
+    setIsOpen(false);
+  };
+
+  const getNotificationIcon = (type: string) => {
+    const icons: Record<string, React.ReactNode> = {
+      booking_confirmed: <Calendar className="h-4 w-4" />,
+      reminder: <Clock className="h-4 w-4" />,
+      cancellation: <Calendar className="h-4 w-4" />,
+      room_changed: <Calendar className="h-4 w-4" />,
+      request_submitted: <FileText className="h-4 w-4" />,
+      request_approved: <FileText className="h-4 w-4" />,
+      request_rejected: <FileText className="h-4 w-4" />,
+    };
+    return icons[type] || <Bell className="h-4 w-4" />;
   };
 
   const getNotificationColor = (type: string) => {
     const colors: Record<string, string> = {
-      booking_confirmed: 'text-blue-600',
-      reminder: 'text-yellow-600',
-      cancellation: 'text-red-600',
-      room_changed: 'text-orange-600',
-      request_submitted: 'text-purple-600',
-      request_approved: 'text-green-600',
-      request_rejected: 'text-red-600',
+      booking_confirmed: 'text-blue-600 bg-blue-100',
+      reminder: 'text-yellow-600 bg-yellow-100',
+      cancellation: 'text-red-600 bg-red-100',
+      room_changed: 'text-orange-600 bg-orange-100',
+      request_submitted: 'text-purple-600 bg-purple-100',
+      request_approved: 'text-green-600 bg-green-100',
+      request_rejected: 'text-red-600 bg-red-100',
     };
-    return colors[type] || 'text-gray-600';
+    return colors[type] || 'text-gray-600 bg-gray-100';
   };
 
   return (
@@ -88,17 +116,28 @@ export const NotificationDropdown = () => {
               <WifiOff className="h-3 w-3 text-red-600" aria-label="Disconnected" />
             )}
           </div>
-          {unreadCount > 0 && (
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
-              size="sm"
-              onClick={handleMarkAllAsRead}
-              className="h-auto p-1 text-xs"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => refetch()}
+              disabled={isLoading}
             >
-              <CheckCheck className="h-3 w-3 mr-1" />
-              Mark all read
+              <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
-          )}
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleMarkAllAsRead}
+                className="h-auto p-1 text-xs"
+              >
+                <CheckCheck className="h-3 w-3 mr-1" />
+                Mark all read
+              </Button>
+            )}
+          </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
@@ -121,23 +160,23 @@ export const NotificationDropdown = () => {
             {allNotifications.map((notification) => (
               <DropdownMenuItem
                 key={notification.id}
-                className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${
-                  !notification.is_read ? 'bg-accent/50' : ''
+                className={`flex flex-col items-start gap-2 p-4 cursor-pointer transition-colors ${
+                  !notification.is_read ? 'bg-accent/70' : ''
                 }`}
-                onClick={() => !notification.is_read && handleMarkAsRead(notification.id)}
+                onClick={() => handleNotificationClick(notification)}
               >
-                <div className="flex items-start justify-between w-full gap-2">
-                  <div className="flex items-start gap-2 flex-1 min-w-0">
-                    <div className={`mt-1 ${getNotificationColor(notification.type)}`}>
-                      {getNotificationIcon()}
+                <div className="flex items-start justify-between w-full gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className={`p-2 rounded-full ${getNotificationColor(notification.type)}`}>
+                      {getNotificationIcon(notification.type)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold truncate">
                           {notification.title}
                         </p>
                         {!notification.is_read && (
-                          <Badge variant="destructive" className="h-5 px-1.5 text-xs">
+                          <Badge variant="default" className="bg-blue-600 text-xs">
                             New
                           </Badge>
                         )}
@@ -145,7 +184,8 @@ export const NotificationDropdown = () => {
                       <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
                         {notification.message}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground/70 mt-2 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
                         {formatDistanceToNow(new Date(notification.created_at), {
                           addSuffix: true,
                         })}
@@ -155,10 +195,10 @@ export const NotificationDropdown = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 flex-shrink-0"
+                    className="h-7 w-7 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={(e) => handleDelete(notification.id, e)}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </DropdownMenuItem>

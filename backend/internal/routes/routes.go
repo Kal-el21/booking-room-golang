@@ -24,9 +24,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 	authService := services.NewAuthService(userRepo)
 	userService := services.NewUserService(userRepo)
 	roomService := services.NewRoomService(roomRepo)
-	requestService := services.NewRequestService(requestRepo, bookingRepo, roomRepo, notificationRepo, userRepo, db)
-	bookingService := services.NewBookingService(bookingRepo, requestRepo, notificationRepo)
 	notificationService := services.NewNotificationService(notificationRepo)
+	requestService := services.NewRequestService(requestRepo, bookingRepo, roomRepo, notificationRepo, notificationService, userRepo, db)
+	bookingService := services.NewBookingService(bookingRepo, requestRepo, notificationRepo, notificationService)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService)
