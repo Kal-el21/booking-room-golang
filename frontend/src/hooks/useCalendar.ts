@@ -6,5 +6,6 @@ export const useCalendar = (filters: CalendarFilters) => {
     queryKey: ['calendar', filters],
     queryFn: () => calendarService.getCalendarEvents(filters),
     enabled: !!filters.start_date && !!filters.end_date,
+    placeholderData: (previousData) => previousData,
   });
 };

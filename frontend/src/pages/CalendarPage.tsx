@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useCalendar } from '@/hooks/useCalendar';
 import { useRooms } from '@/hooks/useRooms';
 import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isWithinInterval, getDay } from 'date-fns';
-import { Calendar as CalendarIcon, DoorOpen, User, Clock, FileText, Repeat } from 'lucide-react';
+import { Calendar as CalendarIcon, DoorOpen, User, Clock, FileText, Repeat, Loader2 } from 'lucide-react';
 import type { CalendarEvent } from '@/services/calendar.service';
 
 /**
@@ -138,10 +138,14 @@ const CalendarPageContent = () => {
     };
   });
 
+  // Debounced date range for API calls to prevent flickering on fast clicking
+  const [debouncedDateRange, setDebouncedDateRange] = useState(dateRange);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Fetch calendar events
-  const { data: events, isLoading: eventsLoading } = useCalendar({
-    start_date: dateRange.start,
-    end_date: dateRange.end,
+  const { data: events, isLoading: eventsLoading, isFetching: eventsFetching } = useCalendar({
+    start_date: debouncedDateRange.start,
+    end_date: debouncedDateRange.end,
     room_id: selectedRoomId !== 'all' ? parseInt(selectedRoomId) : undefined,
   });
 
@@ -155,8 +159,8 @@ const CalendarPageContent = () => {
   const calendarEvents = useMemo(() => {
     if (!events) return [];
 
-    const calendarStart = parseISO(dateRange.start);
-    const calendarEnd = parseISO(dateRange.end);
+    const calendarStart = parseISO(debouncedDateRange.start);
+    const calendarEnd = parseISO(debouncedDateRange.end);
 
     const expandedEvents: CalendarEvent[] = [];
 
@@ -202,7 +206,7 @@ const CalendarPageContent = () => {
         },
       };
     });
-  }, [events, dateRange]);
+  }, [events, debouncedDateRange]);
 
   const handleEventClick = (info: any) => {
     setSelectedEvent(info.event.extendedProps);
@@ -219,9 +223,17 @@ const CalendarPageContent = () => {
     setCurrentDate(newDate);
     setCurrentView(newView);
     
-    // Only update if dates actually changed
+    // Check if dates actually changed
     if (newStart !== dateRange.start || newEnd !== dateRange.end) {
       setDateRange({ start: newStart, end: newEnd });
+
+      // Debounce the actual API update
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        setDebouncedDateRange({ start: newStart, end: newEnd });
+      }, 300); // 300ms debounce
     }
   };
 
@@ -258,7 +270,11 @@ const CalendarPageContent = () => {
     return <Badge variant={variant}>{label}</Badge>;
   };
 
-  if (eventsLoading || roomsLoading) {
+  // Only show full skeleton on initial load, not when re-fetching
+  const isInitialLoading = (eventsLoading && !events) || roomsLoading;
+  const isFetchingMore = eventsFetching && !!events;
+
+  if (isInitialLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-full" />
@@ -271,11 +287,19 @@ const CalendarPageContent = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Calendar</h2>
-          <p className="text-muted-foreground">
-            View all room bookings and requests
-          </p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Calendar</h2>
+            <p className="text-muted-foreground">
+              View all room bookings and requests
+            </p>
+          </div>
+          {isFetchingMore && (
+            <div className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium animate-in fade-in duration-300">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Updating...
+            </div>
+          )}
         </div>
       </div>
 
