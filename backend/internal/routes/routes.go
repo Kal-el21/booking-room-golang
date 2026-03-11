@@ -35,6 +35,14 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 	requestHandler := handlers.NewRequestHandler(requestService)
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	uploadHandler := handlers.NewUploadHandler(roomService)
+
+	// ============================================================
+	// STATIC FILES - Serve uploaded images
+	// ============================================================
+	// Accessible at: /uploads/users/<filename> and /uploads/rooms/<filename>
+	router.Static("/uploads/users", "./internal/uploads/users")
+	router.Static("/uploads/rooms", "./internal/uploads/rooms")
 
 	// API v1 group
 	v1 := router.Group("/api/v1")
@@ -58,7 +66,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 			// Auth routes
 			protected.POST("/auth/logout", authHandler.Logout)
 
-			// User profile routes
+			// User profile routes — PUT /users/me accepts multipart/form-data
+			// with optional fields: name, division, avatar (file)
 			protected.GET("/users/me", userHandler.GetCurrentUser)
 			protected.PUT("/users/me", userHandler.UpdateCurrentUser)
 			protected.PUT("/users/change-password", userHandler.ChangePassword)
@@ -102,6 +111,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 				roomAdmin.POST("/rooms", roomHandler.CreateRoom)
 				roomAdmin.PUT("/rooms/:id", roomHandler.UpdateRoom)
 				roomAdmin.DELETE("/rooms/:id", roomHandler.DeleteRoom)
+
+				// Room image upload (room_admin only)
+				roomAdmin.POST("/rooms/:id/image", uploadHandler.UploadRoomImage)
 
 				// User Management (Add, Update, Delete, Reset Password)
 				roomAdmin.PUT("/users/:id", userHandler.UpdateUser)

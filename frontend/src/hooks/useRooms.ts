@@ -52,6 +52,23 @@ export const useUpdateRoom = () => {
   });
 };
 
+export const useUploadRoomImage = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) =>
+      roomService.uploadRoomImage(id, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      toast.success('Room image uploaded successfully');
+    },
+    onError: (error: unknown) => {
+      const apiError = error as { message?: string };
+      toast.error(apiError.message || 'Failed to upload room image');
+    },
+  });
+};
+
 export const useDeleteRoom = () => {
   const queryClient = useQueryClient();
 

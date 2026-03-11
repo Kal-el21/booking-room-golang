@@ -8,9 +8,18 @@ export interface User {
   role: UserRole;
   division?: string;
   is_active: boolean;
+  avatar?: string;           // URL path e.g. /uploads/users/filename.jpg
   email_verified_at?: string;
   created_at: string;
   updated_at: string;
+  preferences?: UserPreferences;
+}
+
+export interface UserPreferences {
+  notification_24h: boolean;
+  notification_3h: boolean;
+  notification_30m: boolean;
+  email_notifications: boolean;
 }
 
 export interface LoginRequest {
@@ -59,6 +68,7 @@ export interface Room {
   capacity: number;
   location: string;
   description?: string;
+  image_url?: string;        // URL path e.g. /uploads/rooms/filename.jpg
   status: 'available' | 'occupied' | 'maintenance';
   is_active: boolean;
   created_by: number;
@@ -112,13 +122,13 @@ export interface CreateRequestInput {
 }
 
 // Booking Types
-
 export interface RoomResponse {
   id: number;
   room_name: string;
   capacity: number;
   location: string;
   description?: string;
+  image_url?: string;        // URL path e.g. /uploads/rooms/filename.jpg
   status: 'available' | 'occupied' | 'maintenance';
   is_active: boolean;
   created_by: number;
@@ -133,6 +143,7 @@ export interface UserResponse {
   role: UserRole;
   division?: string;
   is_active: boolean;
+  avatar?: string;           // URL path e.g. /uploads/users/filename.jpg
   email_verified_at?: string;
   created_at: string;
   updated_at?: string;

@@ -10,6 +10,12 @@ export interface UserFilters {
   is_active?: boolean;
 }
 
+export interface UpdateProfileData {
+  name?: string;
+  division?: string;
+  avatar?: File; // optional photo file
+}
+
 export interface ChangePasswordData {
   current_password: string;
   new_password: string;
@@ -29,18 +35,32 @@ export const userService = {
     return response.data.data;
   },
 
-  // Update my profile
-  updateMyProfile: async (data: { name?: string; division?: string }): Promise<User> => {
-    const response = await api.put<ApiResponse<User>>(`${USER_PREFIX}/me`, data);
+  /**
+   * Update my profile — name, division, and/or avatar photo in one request.
+   * Sends multipart/form-data so the backend can process the file alongside
+   * the text fields. If no file is provided, only text fields are updated.
+   */
+  updateMyProfile: async (data: UpdateProfileData): Promise<User> => {
+    const formData = new FormData();
+
+    if (data.name !== undefined) formData.append('name', data.name);
+    if (data.division !== undefined) formData.append('division', data.division);
+    if (data.avatar) formData.append('avatar', data.avatar);
+
+    const response = await api.put<ApiResponse<User>>(
+      `${USER_PREFIX}/me`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
     return response.data.data;
   },
 
-  // Change password
+  // Change password (JSON)
   changePassword: async (data: ChangePasswordData): Promise<void> => {
     await api.put(`${USER_PREFIX}/change-password`, data);
   },
 
-  // Update preferences
+  // Update notification/email preferences (JSON)
   updatePreferences: async (data: UpdatePreferencesData): Promise<void> => {
     await api.put(`${USER_PREFIX}/preferences`, data);
   },
@@ -51,7 +71,8 @@ export const userService = {
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.page_size) params.append('page_size', filters.page_size.toString());
     if (filters?.role) params.append('role', filters.role);
-    if (filters?.is_active !== undefined) params.append('is_active', filters.is_active.toString());
+    if (filters?.is_active !== undefined)
+      params.append('is_active', filters.is_active.toString());
 
     const response = await api.get<PaginatedResponse<User>>(
       `${USER_PREFIX}?${params.toString()}`
@@ -65,7 +86,7 @@ export const userService = {
     return response.data.data;
   },
 
-  // Update user (room_admin)
+  // Update user (room_admin) — still JSON
   updateUser: async (id: number, data: Partial<User>): Promise<User> => {
     const response = await api.put<ApiResponse<User>>(`${USER_PREFIX}/${id}`, data);
     return response.data.data;
@@ -73,9 +94,7 @@ export const userService = {
 
   // Reset user password (room_admin)
   resetUserPassword: async (id: number, newPassword: string): Promise<void> => {
-    await api.post(`${USER_PREFIX}/${id}/reset-password`, {
-      new_password: newPassword,
-    });
+    await api.post(`${USER_PREFIX}/${id}/reset-password`, { new_password: newPassword });
   },
 
   // Delete user (room_admin)

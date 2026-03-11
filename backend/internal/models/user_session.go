@@ -21,7 +21,7 @@ type UserSession struct {
 	UpdatedAt             time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// Relationships
-	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	User *User `gorm:"foreignKey:UserID" json:"-"`
 }
 
 // TableName specifies table name
@@ -52,7 +52,7 @@ type UserPreference struct {
 	UpdatedAt          time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// Relationships
-	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	User *User `gorm:"foreignKey:UserID" json:"-"`
 }
 
 // TableName specifies table name

@@ -48,3 +48,8 @@ logs/
 # Temporary files
 temp/
 tmp/
+
+internal/uploads/users/*
+internal/uploads/rooms/*
+!internal/uploads/users/.gitkeep
+!internal/uploads/rooms/.gitkeep

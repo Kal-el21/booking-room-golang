@@ -23,6 +23,7 @@ type User struct {
 	Role            UserRole       `gorm:"type:varchar(50);not null;default:'user'" json:"role"`
 	Division        *string        `gorm:"type:varchar(100)" json:"division"`
 	IsActive        bool           `gorm:"default:true" json:"is_active"`
+	Avatar          *string        `gorm:"type:varchar(255)" json:"avatar"`
 	RefreshToken    *string        `gorm:"type:text" json:"-"` // For JWT refresh
 	CreatedAt       time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt       time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
@@ -76,6 +77,7 @@ type UserResponse struct {
 	Role            UserRole        `json:"role"`
 	Division        *string         `json:"division"`
 	IsActive        bool            `json:"is_active"`
+	Avatar          *string         `json:"avatar"`
 	EmailVerifiedAt *time.Time      `json:"email_verified_at"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
@@ -91,6 +93,7 @@ func (u *User) ToResponse() UserResponse {
 		Role:            u.Role,
 		Division:        u.Division,
 		IsActive:        u.IsActive,
+		Avatar:          u.Avatar,
 		EmailVerifiedAt: u.EmailVerifiedAt,
 		CreatedAt:       u.CreatedAt,
 		UpdatedAt:       u.UpdatedAt,

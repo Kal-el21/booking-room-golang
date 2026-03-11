@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"os"
+	"strings"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/models"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/repositories"
@@ -91,8 +93,23 @@ func (s *UserService) UpdateUser(id uint, input UpdateUserInput) (*models.User, 
 	return s.userRepo.FindByID(id)
 }
 
-// DeleteUser soft deletes user (GA only)
+// DeleteUser soft deletes user and removes avatar file
 func (s *UserService) DeleteUser(id uint) error {
+	// Get user first to find avatar path
+	user, err := s.userRepo.FindByID(id)
+	if err != nil {
+		return err
+	}
+
+	// Delete avatar file if exists
+	if user.Avatar != nil && *user.Avatar != "" {
+		localPath := "." + strings.TrimPrefix(*user.Avatar, "")
+		// The avatar URL is like /uploads/users/filename.jpg
+		// Local path is ./internal/uploads/users/filename.jpg
+		localPath = "." + *user.Avatar
+		_ = os.Remove(localPath)
+	}
+
 	return s.userRepo.Delete(id)
 }
 
@@ -161,4 +178,19 @@ func (s *UserService) UpdatePreferences(userID uint, input UpdatePreferencesInpu
 // GetPreferences gets user preferences
 func (s *UserService) GetPreferences(userID uint) (*models.UserPreference, error) {
 	return s.userRepo.GetOrCreatePreferences(userID)
+}
+
+// UpdateAvatar updates user avatar URL in database
+func (s *UserService) UpdateAvatar(userID uint, avatarURL string) (*models.User, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	user.Avatar = &avatarURL
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, err
+	}
+
+	return s.userRepo.FindByID(userID)
 }

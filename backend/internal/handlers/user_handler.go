@@ -1,11 +1,17 @@
 package handlers
 
 import (
-	"strconv"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/middleware"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/services"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/utils"
+
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +31,6 @@ func NewUserHandler(userService *services.UserService) *UserHandler {
 func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 	user, _ := middleware.GetCurrentUser(c)
 
-	// Get preferences
 	preferences, _ := h.userService.GetPreferences(user.ID)
 
 	response := user.ToResponse()
@@ -34,34 +39,137 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 	utils.SuccessResponse(c, 200, "User retrieved successfully", response)
 }
 
-// UpdateCurrentUser updates current user profile
+// UpdateCurrentUser updates current user profile (name, division) and optionally avatar.
+// Accepts multipart/form-data:
+//   - name     (string, optional)
+//   - division (string, optional)
+//   - avatar   (file,   optional) — JPG / PNG / WebP, max 5 MB
+//
 // @route PUT /api/v1/users/me
 func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 	user, _ := middleware.GetCurrentUser(c)
 
-	var input struct {
-		Name     *string `json:"name"`
-		Division *string `json:"division"`
+	// Limit body size (5 MB for potential image upload)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxUploadSize)
+
+	// Parse multipart form (maxMemory 5 MB)
+	if err := c.Request.ParseMultipartForm(MaxUploadSize); err != nil {
+		// Fallback: try plain JSON if Content-Type is not multipart
+		// (keeps backward compatibility for clients that don't send a file)
+		if err.Error() != "request Content-Type isn't multipart/form-data" {
+			utils.ValidationErrorResponse(c, err.Error())
+			return
+		}
 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		utils.ValidationErrorResponse(c, err.Error())
-		return
+	// ── Read text fields ──────────────────────────────────────
+	updateInput := services.UpdateUserInput{}
+
+	if name := c.PostForm("name"); name != "" {
+		updateInput.Name = &name
+	}
+	if division := c.PostForm("division"); division != "" {
+		updateInput.Division = &division
 	}
 
-	// Prepare update input for service
-	updateInput := services.UpdateUserInput{
-		Name:     input.Name,
-		Division: input.Division,
+	// ── Handle avatar file (optional) ────────────────────────
+	var newAvatarURL *string
+
+	file, header, fileErr := c.Request.FormFile("avatar")
+	if fileErr == nil {
+		defer file.Close()
+
+		// Validate size
+		if header.Size > MaxUploadSize {
+			utils.ErrorResponse(c, 400, "File too large", "Maximum file size is 5MB")
+			return
+		}
+
+		// Detect MIME type
+		mimeType, err := detectMimeType(file)
+		if err != nil {
+			utils.ErrorResponse(c, 400, "Failed to detect file type", err.Error())
+			return
+		}
+		ext, ok := allowedMimeTypes[mimeType]
+		if !ok {
+			utils.ErrorResponse(c, 400, "Invalid file type", "Only JPG, PNG, and WebP images are allowed")
+			return
+		}
+
+		// Build filename: {name}_{email}_{division}.{ext}
+		division := ""
+		if user.Division != nil {
+			division = *user.Division
+		}
+		// Use updated division value if provided in this request
+		if updateInput.Division != nil {
+			division = *updateInput.Division
+		}
+		name := user.Name
+		if updateInput.Name != nil {
+			name = *updateInput.Name
+		}
+		filename := buildUserFilename(name, user.Email, division, ext)
+
+		// Ensure upload dir exists
+		if err := ensureDir(UserUploadDir); err != nil {
+			utils.ErrorResponse(c, 500, "Failed to create upload directory", err.Error())
+			return
+		}
+
+		// Delete old avatar file if exists
+		if user.Avatar != nil && *user.Avatar != "" {
+			_ = os.Remove("." + *user.Avatar)
+		}
+
+		// Save new file
+		destPath := filepath.Join(UserUploadDir, filename)
+		destFile, err := os.Create(destPath)
+		if err != nil {
+			utils.ErrorResponse(c, 500, "Failed to save file", err.Error())
+			return
+		}
+		defer destFile.Close()
+
+		if _, err := io.Copy(destFile, file); err != nil {
+			utils.ErrorResponse(c, 500, "Failed to write file", err.Error())
+			return
+		}
+
+		avatarURL := fmt.Sprintf("/uploads/users/%s", filename)
+		newAvatarURL = &avatarURL
 	}
 
-	updatedUser, err := h.userService.UpdateUser(user.ID, updateInput)
-	if err != nil {
-		utils.ErrorResponse(c, 400, "Failed to update profile", err.Error())
-		return
+	// ── Apply profile updates ─────────────────────────────────
+	// Update name/division if provided
+	var updatedUser interface{}
+	if updateInput.Name != nil || updateInput.Division != nil {
+		u, err := h.userService.UpdateUser(user.ID, updateInput)
+		if err != nil {
+			utils.ErrorResponse(c, 400, "Failed to update profile", err.Error())
+			return
+		}
+		updatedUser = u.ToResponse()
 	}
 
-	utils.SuccessResponse(c, 200, "Profile updated successfully", updatedUser.ToResponse())
+	// Update avatar URL if a new file was uploaded
+	if newAvatarURL != nil {
+		u, err := h.userService.UpdateAvatar(user.ID, *newAvatarURL)
+		if err != nil {
+			utils.ErrorResponse(c, 500, "Failed to update avatar", err.Error())
+			return
+		}
+		updatedUser = u.ToResponse()
+	}
+
+	// If nothing was changed, just return current user
+	if updatedUser == nil {
+		u, _ := h.userService.GetUser(user.ID)
+		updatedUser = u.ToResponse()
+	}
+
+	utils.SuccessResponse(c, 200, "Profile updated successfully", updatedUser)
 }
 
 // GetUser gets user by ID (GA only)

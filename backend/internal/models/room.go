@@ -20,6 +20,7 @@ type Room struct {
 	Capacity    int            `gorm:"not null" json:"capacity" binding:"required,min=1"`
 	Location    string         `gorm:"type:varchar(255);not null" json:"location" binding:"required"` // Include floor
 	Description *string        `gorm:"type:text" json:"description"`                                  // Facilities info
+	ImageURL    *string        `gorm:"type:varchar(255)" json:"image_url"`                            // Room photo
 	Status      RoomStatus     `gorm:"type:varchar(50);not null;default:'available'" json:"status"`
 	IsActive    bool           `gorm:"default:true" json:"is_active"`
 	CreatedBy   uint           `gorm:"not null" json:"created_by"`
@@ -49,6 +50,7 @@ type RoomResponse struct {
 	Capacity    int           `json:"capacity"`
 	Location    string        `json:"location"`
 	Description *string       `json:"description"`
+	ImageURL    *string       `json:"image_url"`
 	Status      RoomStatus    `json:"status"`
 	IsActive    bool          `json:"is_active"`
 	CreatedBy   uint          `json:"created_by"`
@@ -64,6 +66,7 @@ func (r *Room) ToResponse() RoomResponse {
 		Capacity:    r.Capacity,
 		Location:    r.Location,
 		Description: r.Description,
+		ImageURL:    r.ImageURL,
 		Status:      r.Status,
 		IsActive:    r.IsActive,
 		CreatedBy:   r.CreatedBy,

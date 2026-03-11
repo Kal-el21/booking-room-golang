@@ -39,7 +39,7 @@ export const roomService = {
     return response.data.data;
   },
 
-  // Check room availability (public)
+  // Check room availability
   checkAvailability: async (
     roomId: number,
     data: CheckAvailabilityRequest
@@ -60,6 +60,27 @@ export const roomService = {
   // Update room (room_admin only)
   updateRoom: async (id: number, data: Partial<Room>): Promise<Room> => {
     const response = await api.put<ApiResponse<Room>>(`${ROOM_PREFIX}/${id}`, data);
+    return response.data.data;
+  },
+
+  // Upload room image (room_admin only)
+  // Sends multipart/form-data with field name "image"
+  uploadRoomImage: async (
+    roomId: number,
+    file: File
+  ): Promise<{ image_url: string; room: Room }> => {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await api.post<ApiResponse<{ image_url: string; room: Room }>>(
+      `${ROOM_PREFIX}/${roomId}/image`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
     return response.data.data;
   },
 

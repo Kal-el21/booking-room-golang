@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"os"
 	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/models"
@@ -105,8 +106,22 @@ func (s *RoomService) UpdateRoom(id uint, input UpdateRoomInput) (*models.Room, 
 	return s.roomRepo.FindByID(id)
 }
 
-// DeleteRoom deletes room (soft delete)
+// DeleteRoom deletes room (soft delete) and removes image file
 func (s *RoomService) DeleteRoom(id uint) error {
+	// Get room first to find image path
+	room, err := s.roomRepo.FindByID(id)
+	if err != nil {
+		return err
+	}
+
+	// Delete image file if exists
+	// ImageURL is like /uploads/rooms/filename.jpg
+	// Local path is ./internal/uploads/rooms/filename.jpg
+	if room.ImageURL != nil && *room.ImageURL != "" {
+		localPath := "." + *room.ImageURL
+		_ = os.Remove(localPath)
+	}
+
 	return s.roomRepo.Delete(id)
 }
 
@@ -184,4 +199,19 @@ func (s *RoomService) GetAvailableRooms(capacity int, bookingDate, startTime, en
 	}
 
 	return s.roomRepo.GetAvailableRooms(capacity, date, start, end)
+}
+
+// UpdateRoomImage updates room image URL in database
+func (s *RoomService) UpdateRoomImage(id uint, imageURL string) (*models.Room, error) {
+	room, err := s.roomRepo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	room.ImageURL = &imageURL
+	if err := s.roomRepo.Update(room); err != nil {
+		return nil, err
+	}
+
+	return s.roomRepo.FindByID(id)
 }
