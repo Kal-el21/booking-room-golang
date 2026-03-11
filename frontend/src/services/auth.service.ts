@@ -47,7 +47,7 @@ export const authService = {
 
   // Get current user
   getCurrentUser: async (): Promise<User> => {
-    const response = await api.get<ApiResponse<User>>(`${AUTH_PREFIX}/me`);
+    const response = await api.get<ApiResponse<User>>('/api/v1/users/me');
     
     // Update user in localStorage
     localStorage.setItem('user', JSON.stringify(response.data.data));

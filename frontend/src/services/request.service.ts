@@ -55,7 +55,7 @@ export const requestService = {
   },
 
   // Approve request (GA)
-  approveRequest: async (requestId: number, data: { room_id: number }): Promise<any> => {
+  approveRequest: async (requestId: number, data: { room_id: number; consumption_note?: string }): Promise<any> => {
     const response = await api.post<ApiResponse<any>>(
       `${REQUEST_PREFIX}/${requestId}/approve`,
       data

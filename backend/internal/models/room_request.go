@@ -22,6 +22,10 @@ type RoomRequest struct {
 	Purpose          string  `gorm:"type:text;not null" json:"purpose" binding:"required"`
 	Notes            *string `gorm:"type:text" json:"notes"`
 
+	// Consumption fields
+	HasConsumption  bool    `gorm:"default:false" json:"has_consumption"`
+	ConsumptionNote *string `gorm:"type:text" json:"consumption_note"`
+
 	// Single day or multi-day booking
 	BookingDate time.Time  `gorm:"type:date;not null" json:"booking_date" binding:"required"`
 	EndDate     *time.Time `gorm:"type:date" json:"end_date"` // NULL for single day, set for multi-day
@@ -105,6 +109,8 @@ type RoomRequestResponse struct {
 	RequiredCapacity int                   `json:"required_capacity"`
 	Purpose          string                `json:"purpose"`
 	Notes            *string               `json:"notes"`
+	HasConsumption   bool                  `json:"has_consumption"`
+	ConsumptionNote  *string               `json:"consumption_note"`
 	BookingDate      string                `json:"booking_date"` // Format: YYYY-MM-DD
 	EndDate          *string               `json:"end_date"`     // Format: YYYY-MM-DD for multi-day
 	StartTime        string                `json:"start_time"`   // Format: HH:MM
@@ -131,6 +137,8 @@ func (r *RoomRequest) ToResponse() RoomRequestResponse {
 		RequiredCapacity: r.RequiredCapacity,
 		Purpose:          r.Purpose,
 		Notes:            r.Notes,
+		HasConsumption:   r.HasConsumption,
+		ConsumptionNote:  r.ConsumptionNote,
 		BookingDate:      r.BookingDate.Format("2006-01-02"),
 		StartTime:        r.StartTime.Format("15:04"),
 		EndTime:          r.EndTime.Format("15:04"),

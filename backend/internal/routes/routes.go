@@ -11,8 +11,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// SetupRoutes configures all application routes
-func SetupRoutes(router *gin.Engine, db *gorm.DB) {
+// SetupRoutes configures all application routes and returns services that might be needed for background jobs
+func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 	// Initialize repositories
 	userRepo := repositories.NewUserRepository(db)
 	roomRepo := repositories.NewRoomRepository(db)
@@ -57,7 +57,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 		{
 			// Auth routes
 			protected.POST("/auth/logout", authHandler.Logout)
-			protected.GET("/auth/me", authHandler.Me)
 
 			// User profile routes
 			protected.GET("/users/me", userHandler.GetCurrentUser)
@@ -136,4 +135,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) {
 			}
 		}
 	}
+
+	return bookingService
 }

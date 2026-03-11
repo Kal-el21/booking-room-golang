@@ -29,10 +29,9 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 	preferences, _ := h.userService.GetPreferences(user.ID)
 
 	response := user.ToResponse()
-	utils.SuccessResponse(c, 200, "User retrieved successfully", gin.H{
-		"user":        response,
-		"preferences": preferences,
-	})
+	response.Preferences = preferences
+
+	utils.SuccessResponse(c, 200, "User retrieved successfully", response)
 }
 
 // GetUser gets user by ID (GA only)

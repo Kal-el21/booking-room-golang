@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Calendar, Clock, Users, CheckCircle, XCircle, User, DoorOpen, Repeat } from 'lucide-react';
+import { FileText, Calendar, Clock, Users, CheckCircle, XCircle, User, DoorOpen, Repeat, Coffee } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { formatDateRange, formatTimeRange, getBookingTypeLabel } from '@/utils/dateHelpers';
 import type { RoomRequest, RequestFilters } from '@/types';
@@ -20,6 +20,7 @@ export const PendingRequestsPage = () => {
   const [selectedRequest, setSelectedRequest] = useState<RoomRequest | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [rejectReason, setRejectReason] = useState('');
+  const [gaConsumptionNote, setGaConsumptionNote] = useState('');
 
   // Fetch all requests for stats (unfiltered)
   const { data: allRequestsData } = useRequests({
@@ -44,6 +45,7 @@ export const PendingRequestsPage = () => {
   const handleApproveClick = (request: RoomRequest) => {
     setSelectedRequest(request);
     setSelectedRoomId('');
+    setGaConsumptionNote(request.consumption_note || '');
     setApproveDialogOpen(true);
   };
 
@@ -59,11 +61,15 @@ export const PendingRequestsPage = () => {
     try {
       await approveRequest.mutateAsync({
         requestId: selectedRequest.id,
-        data: { room_id: parseInt(selectedRoomId) },
+        data: { 
+          room_id: parseInt(selectedRoomId),
+          consumption_note: gaConsumptionNote || undefined
+        },
       });
       setApproveDialogOpen(false);
       setSelectedRequest(null);
       setSelectedRoomId('');
+      setGaConsumptionNote('');
     } catch {
       // Error handled in hook
     }
@@ -204,6 +210,12 @@ export const PendingRequestsPage = () => {
                     <div className="flex items-center gap-2 mb-2">
                       <CardTitle className="text-lg">{request.purpose}</CardTitle>
                       {getStatusBadge(request.status)}
+                      {request.has_consumption && (
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                          <Coffee className="h-3 w-3 mr-1" />
+                          Consumption
+                        </Badge>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -242,16 +254,29 @@ export const PendingRequestsPage = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                {request.notes && (
-                  <div className="bg-muted rounded-lg p-3 mb-4">
-                    <p className="text-sm">
-                      <span className="font-medium">Notes:</span> {request.notes}
-                    </p>
-                  </div>
-                )}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {request.notes && (
+                    <div className="bg-muted rounded-lg p-3">
+                      <p className="text-sm">
+                        <span className="font-medium">General Notes:</span> {request.notes}
+                      </p>
+                    </div>
+                  )}
+
+                  {request.has_consumption && (
+                    <div className="bg-orange-50/50 border border-orange-100 rounded-lg p-3">
+                      <p className="text-sm">
+                        <span className="font-medium text-orange-800">Consumption Requested:</span>
+                      </p>
+                      <p className="text-sm italic">
+                        {request.consumption_note || 'No specific details provided'}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 {request.status === 'rejected' && request.rejected_reason && (
-                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-4">
                     <p className="text-sm font-medium text-destructive mb-1">
                       Rejection Reason:
                     </p>
@@ -262,7 +287,7 @@ export const PendingRequestsPage = () => {
                 )}
 
                 {request.status === 'pending' && (
-                  <div className="flex gap-2 justify-end">
+                  <div className="flex gap-2 justify-end mt-4">
                     <Button
                       variant="outline"
                       onClick={() => handleRejectClick(request)}
@@ -278,7 +303,7 @@ export const PendingRequestsPage = () => {
                 )}
 
                 {request.status !== 'pending' && (
-                  <div className="text-xs text-muted-foreground text-right">
+                  <div className="text-xs text-muted-foreground text-right mt-4">
                     Processed on {format(parseISO(request.updated_at), 'MMM dd, yyyy')}
                   </div>
                 )}
@@ -294,7 +319,7 @@ export const PendingRequestsPage = () => {
           <DialogHeader>
             <DialogTitle>Approve Request</DialogTitle>
             <DialogDescription>
-              Select an available room for this booking
+              Select an available room and confirm consumption
             </DialogDescription>
           </DialogHeader>
 
@@ -346,6 +371,24 @@ export const PendingRequestsPage = () => {
                   </p>
                 )}
               </div>
+
+              {selectedRequest.has_consumption && (
+                <div className="space-y-2 bg-orange-50/50 p-3 rounded-lg border border-orange-100">
+                  <Label htmlFor="ga_consumption_note" className="text-orange-800">
+                    Consumption Feedback (Optional)
+                  </Label>
+                  <Textarea
+                    id="ga_consumption_note"
+                    placeholder="Update status or give note about consumption availability..."
+                    value={gaConsumptionNote}
+                    onChange={(e) => setGaConsumptionNote(e.target.value)}
+                    rows={3}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    You can clarify if some requested items are not available.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

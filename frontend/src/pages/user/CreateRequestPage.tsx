@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, CalendarDays, Repeat, Calendar } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { ArrowLeft, CalendarDays, Repeat, Calendar, Coffee } from 'lucide-react';
 import { format } from 'date-fns';
 import type { CreateRequestInput } from '@/types';
 
@@ -16,6 +17,8 @@ interface FormState {
   required_capacity: string;
   purpose: string;
   notes: string;
+  has_consumption: boolean;
+  consumption_note: string;
   booking_date: string;
   end_date: string;
   start_time: string;
@@ -50,6 +53,8 @@ export const CreateRequestPage = () => {
     required_capacity: initialCapacity.toString(),
     purpose: '',
     notes: '',
+    has_consumption: false,
+    consumption_note: '',
     booking_date: '',
     end_date: '',
     start_time: '',
@@ -82,6 +87,8 @@ export const CreateRequestPage = () => {
       required_capacity: parseInt(formData.required_capacity),
       purpose: formData.purpose,
       notes: formData.notes || undefined,
+      has_consumption: formData.has_consumption,
+      consumption_note: formData.has_consumption ? formData.consumption_note : undefined,
       booking_date: formData.booking_date,
       start_time: formData.start_time,
       end_time: formData.end_time,
@@ -368,6 +375,42 @@ export const CreateRequestPage = () => {
                 </div>
               </div>
             )}
+
+            {/* Consumption Toggle */}
+            <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Coffee className="h-5 w-5 text-primary" />
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Consumption (Food & Drinks)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Check this if you need snacks or drinks for your meeting
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={formData.has_consumption}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, has_consumption: checked }))}
+                />
+              </div>
+
+              {formData.has_consumption && (
+                <div className="space-y-2 pt-2 border-t animate-in fade-in slide-in-from-top-1 duration-200">
+                  <Label htmlFor="consumption_note">Consumption Details</Label>
+                  <Textarea
+                    id="consumption_note"
+                    name="consumption_note"
+                    placeholder="e.g., Snacks for 10 people, coffee and tea..."
+                    value={formData.consumption_note}
+                    onChange={handleChange}
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Specify the type and quantity of consumption needed
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Notes */}
             <div className="space-y-2">

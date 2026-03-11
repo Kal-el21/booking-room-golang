@@ -70,14 +70,16 @@ func (u *User) CanApproveRequests() bool {
 
 // UserResponse for API responses (without sensitive data)
 type UserResponse struct {
-	ID              uint       `json:"id"`
-	Name            string     `json:"name"`
-	Email           string     `json:"email"`
-	Role            UserRole   `json:"role"`
-	Division        *string    `json:"division"`
-	IsActive        bool       `json:"is_active"`
-	EmailVerifiedAt *time.Time `json:"email_verified_at"`
-	CreatedAt       time.Time  `json:"created_at"`
+	ID              uint            `json:"id"`
+	Name            string          `json:"name"`
+	Email           string          `json:"email"`
+	Role            UserRole        `json:"role"`
+	Division        *string         `json:"division"`
+	IsActive        bool            `json:"is_active"`
+	EmailVerifiedAt *time.Time      `json:"email_verified_at"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	Preferences     *UserPreference `json:"preferences,omitempty"`
 }
 
 // ToResponse converts User to UserResponse
@@ -91,5 +93,6 @@ func (u *User) ToResponse() UserResponse {
 		IsActive:        u.IsActive,
 		EmailVerifiedAt: u.EmailVerifiedAt,
 		CreatedAt:       u.CreatedAt,
+		UpdatedAt:       u.UpdatedAt,
 	}
 }

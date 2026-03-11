@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { FileText, Calendar, Clock, Users, Plus, Trash2, Eye, Repeat } from 'lucide-react';
+import { FileText, Calendar, Clock, Users, Plus, Trash2, Eye, Repeat, Coffee } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDateRange, formatTimeRange, getBookingTypeLabel } from '@/utils/dateHelpers';
 import type { RequestFilters } from '@/types';
@@ -132,6 +132,12 @@ export const MyRequestsPage = () => {
                     <div className="flex items-center gap-2 mb-2">
                       <CardTitle className="text-lg">{request.purpose}</CardTitle>
                       {getStatusBadge(request.status)}
+                      {request.has_consumption && (
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                          <Coffee className="h-3 w-3 mr-1" />
+                          Consumption
+                        </Badge>
+                      )}
                     </div>
                     <CardDescription className="space-y-2">
                       {/* Booking Type Badge */}
@@ -167,14 +173,37 @@ export const MyRequestsPage = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                {request.notes && (
-                  <p className="text-sm text-muted-foreground mb-4">
-                    <span className="font-medium">Notes:</span> {request.notes}
-                  </p>
-                )}
+                <div className="grid gap-4 md:grid-cols-2">
+                  {request.notes && (
+                    <div className="bg-muted rounded-lg p-3">
+                      <p className="text-sm">
+                        <span className="font-medium">General Notes:</span> {request.notes}
+                      </p>
+                    </div>
+                  )}
+
+                  {request.has_consumption && (
+                    <div className="bg-orange-50/50 border border-orange-100 rounded-lg p-3">
+                      <p className="text-sm">
+                        <span className="font-medium text-orange-800 flex items-center gap-1">
+                          <Coffee className="h-3 w-3" />
+                          Consumption:
+                        </span>
+                      </p>
+                      <p className="text-sm italic">
+                        {request.consumption_note || 'Requested'}
+                      </p>
+                      {request.status === 'approved' && !request.consumption_note && (
+                        <p className="text-[10px] text-orange-600 mt-1">
+                          * Note from GA will appear here if updated
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {request.status === 'rejected' && request.rejected_reason && (
-                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-4">
                     <p className="text-sm font-medium text-destructive mb-1">
                       Reason for Rejection:
                     </p>
@@ -184,7 +213,7 @@ export const MyRequestsPage = () => {
                   </div>
                 )}
 
-                <div className="flex gap-2 justify-end">
+                <div className="flex gap-2 justify-end mt-4">
                   {canDelete(request.status) && (
                     <Button
                       variant="outline"

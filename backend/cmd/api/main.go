@@ -8,6 +8,7 @@ import (
 	"github.com/Kal-el21/booking-room-golang/backend/internal/database"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/database/migrations"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/routes"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -58,7 +59,24 @@ func main() {
 	})
 
 	// Setup routes
-	routes.SetupRoutes(router, database.GetDB())
+	bookingService := routes.SetupRoutes(router, database.GetDB())
+
+	// Start background job for booking auto-completion
+	go func() {
+		log.Println("⏰ Starting background job: booking auto-completion")
+		// Run once on startup
+		if err := bookingService.AutoCompleteOldBookings(); err != nil {
+			log.Printf("Error in background job (startup): %v", err)
+		}
+
+		// Then run every hour
+		ticker := time.NewTicker(1 * time.Hour)
+		for range ticker.C {
+			if err := bookingService.AutoCompleteOldBookings(); err != nil {
+				log.Printf("Error in background job: %v", err)
+			}
+		}
+	}()
 
 	// Start server
 	addr := fmt.Sprintf(":%s", cfg.App.Port)

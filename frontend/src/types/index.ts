@@ -42,12 +42,14 @@ export interface ApiResponse<T = any> {
   success: boolean;
   message: string;
   data: T;
+  error?: any;
+  meta?: PaginationMeta;
 }
 
 export interface ApiError {
   success: false;
   message: string;
-  errors?: Record<string, string[]>;
+  error?: any;
 }
 
 // Room Types
@@ -68,23 +70,26 @@ export interface Room {
 export interface RoomRequest {
   id: number;
   user_id: number;
-  user_name?: string; // Added for GA view
-  user?: UserResponse; // User object from backend
+  user_name?: string;
+  user?: UserResponse;
   required_capacity: number;
   purpose: string;
   notes?: string;
+  has_consumption: boolean;
+  consumption_note?: string;
   booking_date: string;
-  end_date?: string; // Multi-day booking end date
+  end_date?: string;
   start_time: string;
   end_time: string;
-  // Recurring booking fields
   is_recurring: boolean;
   recurring_type?: 'daily' | 'weekly' | 'monthly';
-  recurring_days?: string; // Comma-separated days: "1,3,5" for Mon,Wed,Fri
+  recurring_days?: string;
   recurring_end_date?: string;
   status: 'pending' | 'approved' | 'rejected' | 'cancelled';
   assigned_by?: number;
+  assigner?: UserResponse;
   rejected_reason?: string;
+  bookings?: Booking[];
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +99,8 @@ export interface CreateRequestInput {
   required_capacity: number;
   purpose: string;
   notes?: string;
+  has_consumption?: boolean;
+  consumption_note?: string;
   booking_date: string;
   end_date?: string;
   start_time: string;
@@ -126,7 +133,9 @@ export interface UserResponse {
   role: UserRole;
   division?: string;
   is_active: boolean;
+  email_verified_at?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Booking {
@@ -138,7 +147,7 @@ export interface Booking {
   booked_by: number;
   booked_by_user?: UserResponse;
   booking_date: string;
-  end_date?: string; // Multi-day booking support
+  end_date?: string;
   start_time: string;
   end_time: string;
   status: 'confirmed' | 'cancelled' | 'completed';
@@ -164,8 +173,8 @@ export interface Notification {
 
 // Pagination
 export interface PaginationMeta {
-  page: number;
-  page_size: number;
+  current_page: number;
+  per_page: number;
   total: number;
   total_pages: number;
 }

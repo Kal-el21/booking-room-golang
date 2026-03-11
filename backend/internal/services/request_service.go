@@ -48,6 +48,10 @@ type CreateRequestInput struct {
 	Purpose          string  `json:"purpose" binding:"required"`
 	Notes            *string `json:"notes"`
 
+	// Consumption
+	HasConsumption  bool    `json:"has_consumption"`
+	ConsumptionNote *string `json:"consumption_note"`
+
 	// Single or multi-day
 	BookingDate string  `json:"booking_date" binding:"required"` // YYYY-MM-DD
 	EndDate     *string `json:"end_date"`                        // YYYY-MM-DD (optional, for multi-day)
@@ -62,7 +66,8 @@ type CreateRequestInput struct {
 }
 
 type ApproveRequestInput struct {
-	RoomID uint `json:"room_id" binding:"required"`
+	RoomID          uint    `json:"room_id" binding:"required"`
+	ConsumptionNote *string `json:"consumption_note"` // GA can provide note about consumption availability
 }
 
 type RejectRequestInput struct {
@@ -166,6 +171,8 @@ func (s *RequestService) CreateRequest(input CreateRequestInput, userID uint) (*
 		RequiredCapacity: input.RequiredCapacity,
 		Purpose:          input.Purpose,
 		Notes:            input.Notes,
+		HasConsumption:   input.HasConsumption,
+		ConsumptionNote:  input.ConsumptionNote,
 		BookingDate:      bookingDate,
 		EndDate:          endDate,
 		StartTime:        startTime,
@@ -262,6 +269,8 @@ func (s *RequestService) UpdateRequest(id uint, input CreateRequestInput, userID
 	request.RequiredCapacity = input.RequiredCapacity
 	request.Purpose = input.Purpose
 	request.Notes = input.Notes
+	request.HasConsumption = input.HasConsumption
+	request.ConsumptionNote = input.ConsumptionNote
 	request.BookingDate = bookingDate
 	request.StartTime = startTime
 	request.EndTime = endTime
@@ -350,9 +359,13 @@ func (s *RequestService) ApproveRequest(id uint, input ApproveRequestInput, appr
 		}
 	}
 
-	// Update request status
+	// Update request status and consumption note
 	request.Status = models.RequestApproved
 	request.AssignedBy = &approverID
+	if input.ConsumptionNote != nil && *input.ConsumptionNote != "" {
+		request.ConsumptionNote = input.ConsumptionNote
+	}
+
 	if err := tx.Save(request).Error; err != nil {
 		tx.Rollback()
 		return nil, err
