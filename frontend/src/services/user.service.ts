@@ -29,6 +29,12 @@ export const userService = {
     return response.data.data;
   },
 
+  // Update my profile
+  updateMyProfile: async (data: { name?: string; division?: string }): Promise<User> => {
+    const response = await api.put<ApiResponse<User>>(`${USER_PREFIX}/me`, data);
+    return response.data.data;
+  },
+
   // Change password
   changePassword: async (data: ChangePasswordData): Promise<void> => {
     await api.put(`${USER_PREFIX}/change-password`, data);

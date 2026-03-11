@@ -34,6 +34,36 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 	utils.SuccessResponse(c, 200, "User retrieved successfully", response)
 }
 
+// UpdateCurrentUser updates current user profile
+// @route PUT /api/v1/users/me
+func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
+	user, _ := middleware.GetCurrentUser(c)
+
+	var input struct {
+		Name     *string `json:"name"`
+		Division *string `json:"division"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		utils.ValidationErrorResponse(c, err.Error())
+		return
+	}
+
+	// Prepare update input for service
+	updateInput := services.UpdateUserInput{
+		Name:     input.Name,
+		Division: input.Division,
+	}
+
+	updatedUser, err := h.userService.UpdateUser(user.ID, updateInput)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "Failed to update profile", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, "Profile updated successfully", updatedUser.ToResponse())
+}
+
 // GetUser gets user by ID (GA only)
 // @route GET /api/v1/users/:id
 func (h *UserHandler) GetUser(c *gin.Context) {

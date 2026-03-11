@@ -1,0 +1,405 @@
+import { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import { useUpdatePreferences, useChangePassword, useUpdateProfile } from '@/hooks/useUsers';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { User, Bell, Lock, Palette, Save, Loader2, Moon, Sun, Monitor, Edit2 } from 'lucide-react';
+import { toast } from 'sonner';
+
+export const SettingsPage = () => {
+  const { user, refreshUser } = useAuth();
+  const { theme, setTheme } = useTheme();
+  const updatePreferences = useUpdatePreferences();
+  const changePassword = useChangePassword();
+  const updateProfile = useUpdateProfile();
+
+  // Profile edit state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({
+    name: user?.name || '',
+    division: user?.division || '',
+  });
+
+  // Password state
+  const [passwordData, setPasswordData] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  });
+
+  // Preferences state (initial from user)
+  const [prefs, setPrefs] = useState({
+    notification_24h: user?.preferences?.notification_24h ?? true,
+    notification_3h: user?.preferences?.notification_3h ?? true,
+    notification_30m: user?.preferences?.notification_30m ?? true,
+    email_notifications: user?.preferences?.email_notifications ?? true,
+  });
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setPasswordData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setProfileData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const onUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateProfile.mutateAsync(profileData);
+      await refreshUser();
+      setIsEditingProfile(false);
+    } catch {
+      // Error handled by hook
+    }
+  };
+
+  const onUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordData.new_password !== passwordData.confirm_password) {
+      toast.error('New passwords do not match');
+      return;
+    }
+
+    try {
+      await changePassword.mutateAsync({
+        current_password: passwordData.current_password,
+        new_password: passwordData.new_password,
+      });
+      setPasswordData({ current_password: '', new_password: '', confirm_password: '' });
+    } catch {
+      // Error handled by hook
+    }
+  };
+
+  const onUpdatePreferences = async () => {
+    try {
+      await updatePreferences.mutateAsync(prefs);
+    } catch {
+      // Error handled by hook
+    }
+  };
+
+  if (!user) return null;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Settings</h2>
+        <p className="text-muted-foreground">
+          Manage your account settings and preferences
+        </p>
+      </div>
+
+      <Tabs defaultValue="profile" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid md:grid-cols-4">
+          <TabsTrigger value="profile" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            <span className="hidden md:inline">Profile</span>
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            <span className="hidden md:inline">Notifications</span>
+          </TabsTrigger>
+          <TabsTrigger value="security" className="flex items-center gap-2">
+            <Lock className="h-4 w-4" />
+            <span className="hidden md:inline">Security</span>
+          </TabsTrigger>
+          <TabsTrigger value="appearance" className="flex items-center gap-2">
+            <Palette className="h-4 w-4" />
+            <span className="hidden md:inline">Appearance</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Profile Tab */}
+        <TabsContent value="profile">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Profile Information</CardTitle>
+                <CardDescription>
+                  View and update your personal information
+                </CardDescription>
+              </div>
+              {!isEditingProfile && (
+                <Button variant="outline" size="sm" onClick={() => setIsEditingProfile(true)}>
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Edit Profile
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={`https://avatar.iran.liara.run/public/boy?username=${user.name}`} />
+                  <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="space-y-1">
+                  <h3 className="text-xl font-bold">{user.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{user.role}</Badge>
+                    {user.division && <Badge variant="secondary">{user.division}</Badge>}
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={onUpdateProfile} className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2 mt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input 
+                      id="name"
+                      name="name"
+                      value={isEditingProfile ? profileData.name : user.name} 
+                      onChange={handleProfileChange}
+                      readOnly={!isEditingProfile} 
+                      className={!isEditingProfile ? "bg-muted" : ""} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email Address</Label>
+                    <Input value={user.email} readOnly className="bg-muted opacity-70" />
+                    <p className="text-[10px] text-muted-foreground italic">* Email cannot be changed</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="division">Division</Label>
+                    <Input 
+                      id="division"
+                      name="division"
+                      value={isEditingProfile ? profileData.division : (user.division || 'Not assigned')} 
+                      onChange={handleProfileChange}
+                      readOnly={!isEditingProfile} 
+                      className={!isEditingProfile ? "bg-muted" : ""} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Account Created</Label>
+                    <Input 
+                      value={new Date(user.created_at).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      })} 
+                      readOnly 
+                      className="bg-muted opacity-70" 
+                    />
+                  </div>
+                </div>
+
+                {isEditingProfile && (
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      onClick={() => {
+                        setIsEditingProfile(false);
+                        setProfileData({ name: user.name, division: user.division || '' });
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={updateProfile.isPending}>
+                      {updateProfile.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Save Changes
+                    </Button>
+                  </div>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Notifications Tab */}
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle>Notification Preferences</CardTitle>
+              <CardDescription>
+                Choose when and how you want to be notified
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium">Meeting Reminders</h4>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>24 Hours Before</Label>
+                    <p className="text-sm text-muted-foreground">Receive a reminder 1 day before your meeting</p>
+                  </div>
+                  <Switch 
+                    checked={prefs.notification_24h} 
+                    onCheckedChange={(checked) => setPrefs(prev => ({...prev, notification_24h: checked}))}
+                  />
+                </div>
+                <div className="flex items-center justify-between border-t pt-4">
+                  <div className="space-y-0.5">
+                    <Label>3 Hours Before</Label>
+                    <p className="text-sm text-muted-foreground">Receive a reminder 3 hours before your meeting</p>
+                  </div>
+                  <Switch 
+                    checked={prefs.notification_3h} 
+                    onCheckedChange={(checked) => setPrefs(prev => ({...prev, notification_3h: checked}))}
+                  />
+                </div>
+                <div className="flex items-center justify-between border-t pt-4">
+                  <div className="space-y-0.5">
+                    <Label>30 Minutes Before</Label>
+                    <p className="text-sm text-muted-foreground">Receive a final reminder 30 minutes before your meeting</p>
+                  </div>
+                  <Switch 
+                    checked={prefs.notification_30m} 
+                    onCheckedChange={(checked) => setPrefs(prev => ({...prev, notification_30m: checked}))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4 border-t pt-6">
+                <h4 className="text-sm font-medium">Communication Channels</h4>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Email Notifications</Label>
+                    <p className="text-sm text-muted-foreground">Receive request updates and reminders via email</p>
+                  </div>
+                  <Switch 
+                    checked={prefs.email_notifications} 
+                    onCheckedChange={(checked) => setPrefs(prev => ({...prev, email_notifications: checked}))}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end">
+                <Button 
+                  onClick={onUpdatePreferences} 
+                  disabled={updatePreferences.isPending}
+                >
+                  {updatePreferences.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Save Preferences
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Security Tab */}
+        <TabsContent value="security">
+          <Card>
+            <CardHeader>
+              <CardTitle>Change Password</CardTitle>
+              <CardDescription>
+                Update your password to keep your account secure
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={onUpdatePassword} className="space-y-4 max-w-md">
+                <div className="space-y-2">
+                  <Label htmlFor="current_password">Current Password</Label>
+                  <Input 
+                    id="current_password"
+                    name="current_password"
+                    type="password" 
+                    value={passwordData.current_password}
+                    onChange={handlePasswordChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new_password">New Password</Label>
+                  <Input 
+                    id="new_password"
+                    name="new_password"
+                    type="password" 
+                    value={passwordData.new_password}
+                    onChange={handlePasswordChange}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm_password">Confirm New Password</Label>
+                  <Input 
+                    id="confirm_password"
+                    name="confirm_password"
+                    type="password" 
+                    value={passwordData.confirm_password}
+                    onChange={handlePasswordChange}
+                    required
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={changePassword.isPending}
+                  className="mt-2"
+                >
+                  {changePassword.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Lock className="h-4 w-4 mr-2" />
+                  )}
+                  Update Password
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Appearance Tab */}
+        <TabsContent value="appearance">
+          <Card>
+            <CardHeader>
+              <CardTitle>Appearance Settings</CardTitle>
+              <CardDescription>
+                Customize how the application looks for you
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <Label>Theme Mode</Label>
+                <div className="grid grid-cols-3 gap-4 max-w-md">
+                  <Button 
+                    variant={theme === 'light' ? 'default' : 'outline'} 
+                    className="flex flex-col h-auto py-4 gap-2"
+                    onClick={() => setTheme('light')}
+                  >
+                    <Sun className="h-6 w-6" />
+                    <span>Light</span>
+                  </Button>
+                  <Button 
+                    variant={theme === 'dark' ? 'default' : 'outline'} 
+                    className="flex flex-col h-auto py-4 gap-2"
+                    onClick={() => setTheme('dark')}
+                  >
+                    <Moon className="h-6 w-6" />
+                    <span>Dark</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex flex-col h-auto py-4 gap-2 opacity-50"
+                    disabled
+                  >
+                    <Monitor className="h-6 w-6" />
+                    <span>System</span>
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  * System theme automatically matches your device settings
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};

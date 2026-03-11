@@ -60,6 +60,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 
 			// User profile routes
 			protected.GET("/users/me", userHandler.GetCurrentUser)
+			protected.PUT("/users/me", userHandler.UpdateCurrentUser)
 			protected.PUT("/users/change-password", userHandler.ChangePassword)
 			protected.PUT("/users/preferences", userHandler.UpdatePreferences)
 

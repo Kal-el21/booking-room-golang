@@ -31,6 +31,7 @@ import { ManageUsersPage } from './pages/admin/ManageUsersPage';
 
 // Shared Pages
 import { CalendarPage } from './pages/CalendarPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 // Create QueryClient
 const queryClient = new QueryClient({
@@ -70,7 +71,7 @@ function App() {
                 <Route path="requests/new" element={<CreateRequestPage />} />
                 <Route path="bookings" element={<MyBookingsPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
-                <Route path="profile" element={<div>Profile Page - Coming Soon</div>} />
+                <Route path="profile" element={<SettingsPage />} />
               </Route>
 
               {/* GA Routes */}
@@ -87,7 +88,7 @@ function App() {
                 <Route path="bookings" element={<AllBookingsPage />} />
                 <Route path="users" element={<GAUsersPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
-                <Route path="profile" element={<div>Profile Page - Coming Soon</div>} />
+                <Route path="profile" element={<SettingsPage />} />
               </Route>
 
               {/* Room Admin Routes */}
@@ -103,7 +104,7 @@ function App() {
                 <Route path="rooms" element={<ManageRoomsPage />} />
                 <Route path="users" element={<ManageUsersPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
-                <Route path="profile" element={<div>Profile Page - Coming Soon</div>} />
+                <Route path="profile" element={<SettingsPage />} />
               </Route>
 
               {/* Default Redirect */}

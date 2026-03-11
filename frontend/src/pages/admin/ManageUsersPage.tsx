@@ -28,6 +28,7 @@ export const ManageUsersPage = () => {
   const [formData, setFormData] = useState({
     name: '',
     role: 'user' as UserRole,
+    division: '',
     is_active: true,
   });
 
@@ -45,6 +46,7 @@ export const ManageUsersPage = () => {
     setFormData({
       name: user.name,
       role: user.role,
+      division: user.division || '',
       is_active: user.is_active,
     });
     setEditDialogOpen(true);
@@ -70,6 +72,7 @@ export const ManageUsersPage = () => {
         data: {
           name: formData.name,
           role: formData.role,
+          division: formData.division || null,
           is_active: formData.is_active,
         },
       });
@@ -333,6 +336,15 @@ export const ManageUsersPage = () => {
                   id="edit-name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-division">Division</Label>
+                <Input
+                  id="edit-division"
+                  placeholder="e.g., IT, Finance, HR"
+                  value={formData.division}
+                  onChange={(e) => setFormData({ ...formData, division: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
