@@ -19,7 +19,7 @@ func Connect(cfg *config.Config) error {
 
 	// Set GORM config
 	gormConfig := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(logger.Warn),
 	}
 
 	// Connect to database

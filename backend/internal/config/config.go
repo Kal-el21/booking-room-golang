@@ -49,6 +49,7 @@ type CORSConfig struct {
 	AllowedOrigins []string
 	AllowedMethods []string
 	AllowedHeaders []string
+	TrustedProxies []string
 }
 
 type EmailConfig struct {
@@ -101,6 +102,7 @@ func LoadConfig() (*Config, error) {
 			AllowedOrigins: getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
 			AllowedMethods: getEnvAsSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}),
 			AllowedHeaders: getEnvAsSlice("CORS_ALLOWED_HEADERS", []string{"Content-Type", "Authorization", "Accept", "Origin"}),
+			TrustedProxies: getEnvAsSlice("TRUSTED_PROXIES", []string{}),
 		},
 		Email: EmailConfig{
 			SMTPHost:     getEnv("SMTP_HOST", "smtp.gmail.com"),

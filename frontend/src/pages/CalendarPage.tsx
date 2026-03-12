@@ -140,7 +140,7 @@ const CalendarPageContent = () => {
 
   // Debounced date range for API calls to prevent flickering on fast clicking
   const [debouncedDateRange, setDebouncedDateRange] = useState(dateRange);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch calendar events
   const { data: events, isLoading: eventsLoading, isFetching: eventsFetching } = useCalendar({

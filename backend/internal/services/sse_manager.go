@@ -77,7 +77,6 @@ func (m *SSEManager) run() {
 			m.mu.Lock()
 			m.clients[client.UserID] = append(m.clients[client.UserID], client)
 			m.mu.Unlock()
-			log.Printf("SSE: Client registered for user %d. Total clients: %d", client.UserID, len(m.clients[client.UserID]))
 
 		case client := <-m.unregister:
 			m.mu.Lock()
@@ -96,7 +95,6 @@ func (m *SSEManager) run() {
 				}
 			}
 			m.mu.Unlock()
-			log.Printf("SSE: Client unregistered for user %d", client.UserID)
 
 		case msg := <-m.broadcast:
 			m.mu.RLock()
@@ -119,9 +117,9 @@ func (m *SSEManager) run() {
 				for _, client := range clients {
 					select {
 					case client.Channel <- message:
-						log.Printf("SSE: Notification sent to user %d", msg.UserID)
+						// Success
 					default:
-						log.Printf("SSE: Client channel full for user %d, skipping", msg.UserID)
+						// Skip if channel full
 					}
 				}
 			}
@@ -141,7 +139,7 @@ func (m *SSEManager) pingClients() {
 
 	for range ticker.C {
 		m.mu.RLock()
-		for userID, clients := range m.clients {
+		for _, clients := range m.clients {
 			for _, client := range clients {
 				select {
 				case client.Channel <- SSEMessage{
@@ -150,7 +148,7 @@ func (m *SSEManager) pingClients() {
 				}:
 					client.LastPingAt = time.Now()
 				default:
-					log.Printf("SSE: Ping failed for user %d", userID)
+					// Ping failed, client likely disconnected
 				}
 			}
 		}

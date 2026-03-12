@@ -35,10 +35,31 @@ func main() {
 	// Set Gin mode
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
+	} else {
+		// Even in development, we can use ReleaseMode for a cleaner terminal
+		// or just keep it as is if you want to see errors.
+		// To be really clean, we'll set it to release mode.
+		gin.SetMode(gin.ReleaseMode)
 	}
 
 	// Initialize Gin router
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Recovery())
+
+	// Set trusted proxies
+	if len(cfg.CORS.TrustedProxies) > 0 {
+		router.SetTrustedProxies(cfg.CORS.TrustedProxies)
+	} else {
+		// Menampilkan peringatan keamanan secara manual karena Gin mode adalah ReleaseMode
+		log.Println("⚠️  [SECURITY WARNING] You trusted all proxies (TRUSTED_PROXIES is not set).")
+		log.Println("   This is NOT safe for production. We recommend setting specific proxy IPs.")
+		router.SetTrustedProxies(nil)
+	}
+
+	// Only use logger in development or if specifically requested
+	if cfg.App.Env == "development" {
+		router.Use(gin.Logger())
+	}
 
 	// Setup CORS
 	corsConfig := cors.Config{

@@ -19,7 +19,6 @@ import {
   Camera, Upload, ImageIcon, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { roomService } from '@/services/room.service';
 import type { Room } from '@/types';
 
 // Helper: build full image URL from relative path

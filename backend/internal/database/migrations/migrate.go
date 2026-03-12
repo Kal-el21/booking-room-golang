@@ -11,8 +11,6 @@ import (
 
 // Migrate runs all database migrations
 func Migrate(db *gorm.DB) error {
-	log.Println("🔄 Running database migrations...")
-
 	// Drop unique constraint on request_id before migration
 	// This allows multiple bookings per request (for multi-day and recurring)
 	db.Exec("ALTER TABLE room_bookings DROP CONSTRAINT IF EXISTS room_bookings_request_id_key")
@@ -35,20 +33,17 @@ func Migrate(db *gorm.DB) error {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	log.Println("✅ Database migrations completed successfully")
-
 	// Create indexes
 	if err := createIndexes(db); err != nil {
 		return fmt.Errorf("failed to create indexes: %w", err)
 	}
 
+	log.Println("✅ Database migration and indexing completed")
 	return nil
 }
 
 // createIndexes creates additional database indexes for performance
 func createIndexes(db *gorm.DB) error {
-	log.Println("🔄 Creating additional indexes...")
-
 	// Composite indexes for better query performance
 	indexes := []struct {
 		table   string
@@ -93,7 +88,6 @@ func createIndexes(db *gorm.DB) error {
 		}
 	}
 
-	log.Println("✅ Indexes created successfully")
 	return nil
 }
 
