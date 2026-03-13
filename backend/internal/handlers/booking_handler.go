@@ -67,7 +67,7 @@ func (h *BookingHandler) ListBookings(c *gin.Context) {
 	// Auto-complete old bookings (non-blocking, runs in background)
 	go h.bookingService.AutoCompleteOldBookings()
 
-	var responses []interface{}
+	responses := make([]interface{}, 0)
 	for _, booking := range bookings {
 		responses = append(responses, booking.ToResponse())
 	}
@@ -135,7 +135,7 @@ func (h *BookingHandler) GetCalendar(c *gin.Context) {
 		return
 	}
 
-	var responses []interface{}
+	responses := make([]interface{}, 0)
 
 	// Add bookings
 	for _, booking := range bookings {

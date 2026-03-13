@@ -21,7 +21,7 @@ export class SSEService {
 
       // Handle connection open
       this.eventSource.onopen = () => {
-        console.log('SSE: Connection established');
+        // console.log('SSE: Connection established'); // Removed to keep console clean
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
         this.emit('connected', { timestamp: Date.now() });
@@ -31,10 +31,10 @@ export class SSEService {
       this.eventSource.addEventListener('connected', (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('SSE: Received connected event:', data);
+          // console.log('SSE: Received connected event:', data); // Removed
           this.emit('connected', data);
         } catch (error) {
-          console.error('SSE: Failed to parse connected event:', error);
+          // console.error('SSE: Failed to parse connected event'); // Simplified
         }
       });
 
@@ -44,7 +44,7 @@ export class SSEService {
           const data = JSON.parse(event.data);
           this.emit('notification', data);
         } catch (error) {
-          console.error('SSE: Failed to parse notification:', error);
+          // console.error('SSE: Failed to parse notification');
         }
       });
 
@@ -52,18 +52,18 @@ export class SSEService {
       this.eventSource.addEventListener('ping', (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('SSE: Received ping at', new Date(data.timestamp * 1000));
+          // console.log('SSE: Received ping'); // Removed
         } catch (error) {
-          console.error('SSE: Failed to parse ping:', error);
+          // console.error('SSE: Failed to parse ping');
         }
       });
 
       // Handle errors
       this.eventSource.onerror = (error) => {
-        console.error('SSE: Connection error', error);
+        // console.error('SSE: Connection error'); // Simplified
         
         if (this.eventSource?.readyState === EventSource.CLOSED) {
-          console.log('SSE: Connection closed, attempting to reconnect...');
+          // console.log('SSE: Connection closed, attempting to reconnect...');
           this.handleReconnect(token);
         }
       };

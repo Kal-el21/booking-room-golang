@@ -68,11 +68,21 @@ type FeatureConfig struct {
 
 var App *Config
 
-// LoadConfig loads configuration from .env file
+// LoadConfig loads configuration from .env file or environment variables
 func LoadConfig() (*Config, error) {
-	// Load .env file
-	if err := godotenv.Load(); err != nil {
-		log.Println("Warning: .env file not found, using environment variables")
+	// Try to load .env file
+	err := godotenv.Load()
+	
+	// If .env file is not found, check if essential environment variables are already set
+	// (common in Docker environments)
+	if err != nil {
+		// Check for a critical variable like DB_PASSWORD or APP_NAME
+		if os.Getenv("DB_PASSWORD") == "" && os.Getenv("APP_NAME") == "" {
+			log.Println("Warning: .env file not found and essential environment variables are missing")
+		} else {
+			// Essential variables exist, so we are likely in a Docker environment
+			// No need to show a warning as the configuration is being provided by the OS
+		}
 	}
 
 	config := &Config{
@@ -119,8 +129,8 @@ func LoadConfig() (*Config, error) {
 	}
 
 	// Validate required fields
-	if config.Database.Password == "" {
-		return nil, fmt.Errorf("DB_PASSWORD is required")
+	if config.Database.Password == "" && os.Getenv("APP_ENV") == "production" {
+		return nil, fmt.Errorf("DB_PASSWORD is required in production")
 	}
 
 	if config.JWT.Secret == "your-secret-key" {

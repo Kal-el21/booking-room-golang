@@ -39,6 +39,6 @@ export const calendarService = {
     const response = await api.get<ApiResponse<CalendarEvent[]>>(
       `${CALENDAR_PREFIX}?${params.toString()}`
     );
-    return response.data.data;
+    return response.data.data ?? [];
   },
 };

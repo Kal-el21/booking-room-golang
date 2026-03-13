@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/url"
+	"regexp"
+	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/config"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/database"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/database/migrations"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/routes"
-	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -36,9 +38,6 @@ func main() {
 	if cfg.App.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
-		// Even in development, we can use ReleaseMode for a cleaner terminal
-		// or just keep it as is if you want to see errors.
-		// To be really clean, we'll set it to release mode.
 		gin.SetMode(gin.ReleaseMode)
 	}
 
@@ -46,19 +45,43 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
+	// Custom Logger to mask sensitive query parameters like token
+	router.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		// Clean the path to mask token
+		path := param.Path
+		if param.Request.URL.RawQuery != "" {
+			u, err := url.Parse(path)
+			if err == nil {
+				query := u.Query()
+				if query.Get("token") != "" {
+					query.Set("token", "REDACTED")
+					u.RawQuery = query.Encode()
+					path = u.String()
+				}
+			} else {
+				// Fallback to regex if URL parsing fails
+				re := regexp.MustCompile(`token=[^&?]+`)
+				path = re.ReplaceAllString(path, "token=REDACTED")
+			}
+		}
+
+		return fmt.Sprintf("[GIN] %s | %3d | %13v | %15s | %-7s %s\n%s",
+			param.TimeStamp.Format("2006/01/02 - 15:04:05"),
+			param.StatusCode,
+			param.Latency,
+			param.ClientIP,
+			param.Method,
+			path,
+			param.ErrorMessage,
+		)
+	}))
+
 	// Set trusted proxies
 	if len(cfg.CORS.TrustedProxies) > 0 {
 		router.SetTrustedProxies(cfg.CORS.TrustedProxies)
 	} else {
-		// Menampilkan peringatan keamanan secara manual karena Gin mode adalah ReleaseMode
 		log.Println("⚠️  [SECURITY WARNING] You trusted all proxies (TRUSTED_PROXIES is not set).")
-		log.Println("   This is NOT safe for production. We recommend setting specific proxy IPs.")
 		router.SetTrustedProxies(nil)
-	}
-
-	// Only use logger in development or if specifically requested
-	if cfg.App.Env == "development" {
-		router.Use(gin.Logger())
 	}
 
 	// Setup CORS
@@ -85,12 +108,10 @@ func main() {
 	// Start background job for booking auto-completion
 	go func() {
 		log.Println("⏰ Starting background job: booking auto-completion")
-		// Run once on startup
 		if err := bookingService.AutoCompleteOldBookings(); err != nil {
 			log.Printf("Error in background job (startup): %v", err)
 		}
 
-		// Then run every hour
 		ticker := time.NewTicker(1 * time.Hour)
 		for range ticker.C {
 			if err := bookingService.AutoCompleteOldBookings(); err != nil {
