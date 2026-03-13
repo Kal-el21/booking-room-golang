@@ -55,6 +55,7 @@ booking-room-golang/
    ```bash
    docker compose up -d
    ```
+   *Note: This will automatically run database migrations and seed the admin user.*
 
 2. **View logs:**
    ```bash
@@ -94,21 +95,15 @@ booking-room-golang/
 
 ## Admin User Setup
 
-### Create Admin User
+### Automated Admin Seeding (Recommended)
 
-#### Using Docker (Recommended)
+When you run `docker compose up -d`, the system will automatically run the admin seeding process to ensure an admin user exists in the database.
+
+### Create Admin User Manually
+
+#### Using Docker (Manual)
 ```bash
-# Rebuild backend with seed_admin
-docker compose up -d --build backend
-
-# Run seed command
-docker exec -it room-booking-api ./seed_admin
-```
-
-#### Using Makefile (Docker)
-```bash
-cd backend
-make docker-seed-admin
+docker compose exec backend ./seed_admin
 ```
 
 #### Using Makefile (Local)

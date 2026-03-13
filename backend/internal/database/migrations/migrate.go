@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/models"
+	"github.com/Kal-el21/booking-room-golang/backend/internal/utils"
 
 	"gorm.io/gorm"
 )
@@ -13,8 +14,10 @@ import (
 func Migrate(db *gorm.DB) error {
 	// Drop unique constraint on request_id before migration
 	// This allows multiple bookings per request (for multi-day and recurring)
-	db.Exec("ALTER TABLE room_bookings DROP CONSTRAINT IF EXISTS room_bookings_request_id_key")
-	db.Exec("ALTER TABLE room_bookings DROP CONSTRAINT IF EXISTS uni_room_bookings_request_id")
+	if db.Migrator().HasTable("room_bookings") {
+		db.Exec("ALTER TABLE room_bookings DROP CONSTRAINT IF EXISTS room_bookings_request_id_key")
+		db.Exec("ALTER TABLE room_bookings DROP CONSTRAINT IF EXISTS uni_room_bookings_request_id")
+	}
 
 	// Auto migrate all models
 	err := db.AutoMigrate(
@@ -39,6 +42,12 @@ func Migrate(db *gorm.DB) error {
 	}
 
 	log.Println("✅ Database migration and indexing completed")
+
+	// Run Admin Seeding
+	if err := SeedAdmin(db); err != nil {
+		log.Printf("Warning: Failed to seed admin user: %v", err)
+	}
+
 	return nil
 }
 
@@ -103,21 +112,43 @@ func joinColumns(columns []string) string {
 	return result
 }
 
-// Seed creates initial data for testing
-func Seed(db *gorm.DB) error {
-	log.Println("🌱 Seeding database...")
+// SeedAdmin creates initial admin user if it doesn't exist
+func SeedAdmin(db *gorm.DB) error {
+	log.Println("🌱 Checking for admin user...")
 
-	// Check if users already exist
+	adminEmail := "admin@indore.co.id"
+	adminDivision := "IT"
+	adminPassword := "rJsm8kFce4"
+	adminName := "Admin Indore"
+
+	// Check if admin user already exists
 	var count int64
-	db.Model(&models.User{}).Count(&count)
+	db.Model(&models.User{}).Where("email = ?", adminEmail).Count(&count)
 	if count > 0 {
-		log.Println("⚠️  Database already seeded, skipping...")
+		log.Println("⚠️  Admin user already exists, skipping...")
 		return nil
 	}
 
-	// Create default users (passwords will be hashed by service)
-	// Note: In production, you should use a proper seeding mechanism
+	// Hash password
+	hashedPassword, err := utils.HashPassword(adminPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
 
-	log.Println("✅ Database seeded successfully")
+	// Create admin user
+	admin := models.User{
+		Name:     adminName,
+		Email:    adminEmail,
+		Password: hashedPassword,
+		Role:     models.RoleRoomAdmin,
+		Division: &adminDivision,
+		IsActive: true,
+	}
+
+	if err := db.Create(&admin).Error; err != nil {
+		return fmt.Errorf("failed to create admin user: %w", err)
+	}
+
+	log.Println("✅ Admin user created successfully!")
 	return nil
 }
