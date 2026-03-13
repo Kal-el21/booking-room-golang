@@ -94,7 +94,7 @@ func main() {
 	router.Use(cors.New(corsConfig))
 
 	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
+	router.Any("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "healthy",
 			"service": cfg.App.Name,
