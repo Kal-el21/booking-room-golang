@@ -23,7 +23,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o seed_admin ./cmd/seed_admin
 
 # Stage 2: Runtime
-FROM alpine:latest
+FROM alpine:3.22
 
 # Install ca-certificates and wget for healthcheck
 RUN apk --no-cache add ca-certificates tzdata wget
