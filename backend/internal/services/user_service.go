@@ -15,9 +15,7 @@ type UserService struct {
 }
 
 func NewUserService(userRepo *repositories.UserRepository) *UserService {
-	return &UserService{
-		userRepo: userRepo,
-	}
+	return &UserService{userRepo: userRepo}
 }
 
 type UpdateUserInput struct {
@@ -33,19 +31,20 @@ type ChangePasswordInput struct {
 	NewPassword     string `json:"new_password" binding:"required,min=6"`
 }
 
+// UpdatePreferencesInput covers all user-configurable preference fields.
+// Using pointers so callers can send partial updates (only changed fields).
 type UpdatePreferencesInput struct {
 	Notification24h    *bool `json:"notification_24h"`
 	Notification3h     *bool `json:"notification_3h"`
 	Notification30m    *bool `json:"notification_30m"`
 	EmailNotifications *bool `json:"email_notifications"`
+	OtpLoginEnabled    *bool `json:"otp_login_enabled"` // NEW
 }
 
-// GetUser gets user by ID (GA only)
 func (s *UserService) GetUser(id uint) (*models.User, error) {
 	return s.userRepo.FindByID(id)
 }
 
-// ListUsers lists all users (GA only)
 func (s *UserService) ListUsers(page, pageSize int) ([]models.User, int64, error) {
 	if page < 1 {
 		page = 1
@@ -53,26 +52,22 @@ func (s *UserService) ListUsers(page, pageSize int) ([]models.User, int64, error
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 10
 	}
-
 	return s.userRepo.List(page, pageSize)
 }
 
-// UpdateUser updates user (GA only)
 func (s *UserService) UpdateUser(id uint, input UpdateUserInput) (*models.User, error) {
 	user, err := s.userRepo.FindByID(id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Update fields if provided
 	if input.Name != nil {
 		user.Name = *input.Name
 	}
 	if input.Email != nil {
-		// Check if email already exists
-		existingUser, err := s.userRepo.FindByEmail(*input.Email)
-		if err == nil && existingUser.ID != id {
-			return nil, errors.New("email already in use")
+		existing, err := s.userRepo.FindByEmail(*input.Email)
+		if err == nil && existing.ID != id {
+			return nil, errors.New("email sudah digunakan")
 		}
 		user.Email = *input.Email
 	}
@@ -89,72 +84,56 @@ func (s *UserService) UpdateUser(id uint, input UpdateUserInput) (*models.User, 
 	if err := s.userRepo.Update(user); err != nil {
 		return nil, err
 	}
-
 	return s.userRepo.FindByID(id)
 }
 
-// DeleteUser soft deletes user and removes avatar file
 func (s *UserService) DeleteUser(id uint) error {
-	// Get user first to find avatar path
 	user, err := s.userRepo.FindByID(id)
 	if err != nil {
 		return err
 	}
 
-	// Delete avatar file if exists
 	if user.Avatar != nil && *user.Avatar != "" {
-		localPath := "." + strings.TrimPrefix(*user.Avatar, "")
-		// The avatar URL is like /uploads/users/filename.jpg
-		// Local path is ./internal/uploads/users/filename.jpg
-		localPath = "." + *user.Avatar
+		localPath := "." + *user.Avatar
 		_ = os.Remove(localPath)
 	}
 
 	return s.userRepo.Delete(id)
 }
 
-// ChangePassword changes user password
 func (s *UserService) ChangePassword(userID uint, input ChangePasswordInput) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return err
 	}
 
-	// Verify current password
 	if err := utils.CheckPassword(user.Password, input.CurrentPassword); err != nil {
-		return errors.New("current password is incorrect")
+		return errors.New("password saat ini salah")
 	}
 
-	// Hash new password
-	hashedPassword, err := utils.HashPassword(input.NewPassword)
+	hashed, err := utils.HashPassword(input.NewPassword)
 	if err != nil {
 		return err
 	}
 
-	// Update password
-	return s.userRepo.UpdatePassword(userID, hashedPassword)
+	return s.userRepo.UpdatePassword(userID, hashed)
 }
 
-// ResetPassword resets user password (Room Admin/GA only)
 func (s *UserService) ResetPassword(userID uint, newPassword string) error {
-	// Hash new password
-	hashedPassword, err := utils.HashPassword(newPassword)
+	hashed, err := utils.HashPassword(newPassword)
 	if err != nil {
 		return err
 	}
-
-	// Update password
-	return s.userRepo.UpdatePassword(userID, hashedPassword)
+	return s.userRepo.UpdatePassword(userID, hashed)
 }
 
-// UpdatePreferences updates user preferences
+// UpdatePreferences applies a partial update — only non-nil fields are changed.
 func (s *UserService) UpdatePreferences(userID uint, input UpdatePreferencesInput) (*models.UserPreference, error) {
 	pref, err := s.userRepo.GetOrCreatePreferences(userID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Update fields if provided
 	if input.Notification24h != nil {
 		pref.Notification24h = *input.Notification24h
 	}
@@ -167,6 +146,9 @@ func (s *UserService) UpdatePreferences(userID uint, input UpdatePreferencesInpu
 	if input.EmailNotifications != nil {
 		pref.EmailNotifications = *input.EmailNotifications
 	}
+	if input.OtpLoginEnabled != nil {
+		pref.OtpLoginEnabled = *input.OtpLoginEnabled
+	}
 
 	if err := s.userRepo.UpdatePreferences(pref); err != nil {
 		return nil, err
@@ -175,16 +157,19 @@ func (s *UserService) UpdatePreferences(userID uint, input UpdatePreferencesInpu
 	return pref, nil
 }
 
-// GetPreferences gets user preferences
 func (s *UserService) GetPreferences(userID uint) (*models.UserPreference, error) {
 	return s.userRepo.GetOrCreatePreferences(userID)
 }
 
-// UpdateAvatar updates user avatar URL in database
 func (s *UserService) UpdateAvatar(userID uint, avatarURL string) (*models.User, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Remove old avatar file if present
+	if user.Avatar != nil && *user.Avatar != "" {
+		_ = os.Remove("." + strings.TrimPrefix(*user.Avatar, ""))
 	}
 
 	user.Avatar = &avatarURL

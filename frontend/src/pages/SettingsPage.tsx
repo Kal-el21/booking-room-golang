@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useUpdatePreferences, useChangePassword, useUpdateProfile } from '@/hooks/useUsers';
@@ -10,13 +10,14 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   User, Bell, Lock, Palette, Save, Loader2,
-  Moon, Sun, Monitor, Edit2, Camera,
+  Moon, Sun, Monitor, Edit2, Camera, ShieldCheck, Settings2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSystemSettings, useUpdateSystemSettings } from '@/hooks/useSystemSettings';
 
-// Build full URL from a relative path like /uploads/users/filename.jpg
 const getAvatarUrl = (avatar?: string | null) => {
   if (!avatar) return undefined;
   if (avatar.startsWith('http')) return avatar;
@@ -29,8 +30,31 @@ export const SettingsPage = () => {
   const { theme, setTheme } = useTheme();
   const updatePreferences = useUpdatePreferences();
   const changePassword = useChangePassword();
-  // useUpdateProfile must call userService.updateMyProfile({ name, division, avatar })
   const updateProfile = useUpdateProfile();
+
+  const isAdmin = user?.role === 'room_admin';
+
+  // ── System settings (admin only) ─────────────────────────────
+  const { data: systemSettings, isLoading: isLoadingSystemSettings } = useSystemSettings();
+  const updateSystemSettings = useUpdateSystemSettings();
+  const [sysPrefs, setSysPrefs] = useState({
+    email_verification_enabled: false,
+  });
+
+  // Sync sysPrefs once the query resolves
+  useEffect(() => {
+    if (systemSettings) {
+      setSysPrefs({ email_verification_enabled: systemSettings.email_verification_enabled });
+    }
+  }, [systemSettings]);
+
+  const onSaveSystemSettings = async () => {
+    try {
+      await updateSystemSettings.mutateAsync(sysPrefs);
+    } catch {
+      // Error handled by hook
+    }
+  };
 
   // ── Avatar / profile edit state ──────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,12 +73,13 @@ export const SettingsPage = () => {
     confirm_password: '',
   });
 
-  // ── Preferences state ────────────────────────────────────────
+  // ── User preferences state ───────────────────────────────────
   const [prefs, setPrefs] = useState({
-    notification_24h: user?.preferences?.notification_24h ?? true,
-    notification_3h: user?.preferences?.notification_3h ?? true,
-    notification_30m: user?.preferences?.notification_30m ?? true,
-    email_notifications: user?.preferences?.email_notifications ?? true,
+    notification_24h:    user?.preferences?.notification_24h    ?? true,
+    notification_3h:     user?.preferences?.notification_3h     ?? true,
+    notification_30m:    user?.preferences?.notification_30m    ?? true,
+    email_notifications: user?.preferences?.email_notifications ?? false,
+    otp_login_enabled:   user?.preferences?.otp_login_enabled   ?? false,
   });
 
   // ── Avatar file picker ───────────────────────────────────────
@@ -64,11 +89,11 @@ export const SettingsPage = () => {
 
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!allowed.includes(file.type)) {
-      toast.error('Invalid file type. Only JPG, PNG, and WebP are allowed.');
+      toast.error('Tipe file tidak valid. Hanya JPG, PNG, dan WebP yang diizinkan.');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File too large. Maximum size is 5MB.');
+      toast.error('File terlalu besar. Ukuran maksimal 5MB.');
       return;
     }
 
@@ -77,7 +102,6 @@ export const SettingsPage = () => {
     reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
 
-    // Auto-enter edit mode so user can adjust name/division and save all at once
     if (!isEditingProfile) {
       setIsEditingProfile(true);
       setProfileData({ name: user?.name || '', division: user?.division || '' });
@@ -92,7 +116,6 @@ export const SettingsPage = () => {
     setProfileData({ name: user?.name || '', division: user?.division || '' });
   };
 
-  // ── Save profile: name + division + optional avatar in ONE request ──
   const onUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -111,7 +134,6 @@ export const SettingsPage = () => {
     }
   };
 
-  // ── Password handler ─────────────────────────────────────────
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setPasswordData((prev) => ({ ...prev, [name]: value }));
@@ -120,7 +142,7 @@ export const SettingsPage = () => {
   const onUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordData.new_password !== passwordData.confirm_password) {
-      toast.error('New passwords do not match');
+      toast.error('Password baru tidak cocok');
       return;
     }
     try {
@@ -134,7 +156,6 @@ export const SettingsPage = () => {
     }
   };
 
-  // ── Preferences handler ──────────────────────────────────────
   const onUpdatePreferences = async () => {
     try {
       await updatePreferences.mutateAsync(prefs);
@@ -147,31 +168,42 @@ export const SettingsPage = () => {
 
   const displayAvatar = avatarPreview ?? getAvatarUrl(user.avatar);
 
+  // Tab count: 4 for regular users, 5 for admin (+ System tab)
+  const tabGridCols = isAdmin ? 'grid-cols-5' : 'grid-cols-4';
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Settings</h2>
-        <p className="text-muted-foreground">Manage your account settings and preferences</p>
+        <h2 className="text-2xl font-bold">Pengaturan</h2>
+        <p className="text-muted-foreground">Kelola pengaturan akun dan preferensi Anda</p>
       </div>
 
       <Tabs defaultValue="profile" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid md:grid-cols-4">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            <span className="hidden md:inline">Profile</span>
+        <TabsList className={`grid w-full ${tabGridCols}`}>
+          <TabsTrigger value="profile" className="flex items-center justify-center gap-1.5 px-2">
+            <User className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline truncate">Profil</span>
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            <span className="hidden md:inline">Notifications</span>
+          <TabsTrigger value="notifications" className="flex items-center justify-center gap-1.5 px-2">
+            <Bell className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline truncate">Notifikasi</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Lock className="h-4 w-4" />
-            <span className="hidden md:inline">Security</span>
+          <TabsTrigger value="security" className="flex items-center justify-center gap-1.5 px-2">
+            <Lock className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline truncate">Keamanan</span>
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="flex items-center gap-2">
-            <Palette className="h-4 w-4" />
-            <span className="hidden md:inline">Appearance</span>
+          <TabsTrigger value="appearance" className="flex items-center justify-center gap-1.5 px-2">
+            <Palette className="h-4 w-4 flex-shrink-0" />
+            <span className="hidden sm:inline truncate">Tampilan</span>
           </TabsTrigger>
+
+          {/* ── Admin-only tab ── */}
+          {isAdmin && (
+            <TabsTrigger value="system" className="flex items-center justify-center gap-1.5 px-2">
+              <Settings2 className="h-4 w-4 flex-shrink-0" />
+              <span className="hidden sm:inline truncate">Sistem</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ── Profile Tab ─────────────────────────────────────── */}
@@ -179,10 +211,8 @@ export const SettingsPage = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Profile Information</CardTitle>
-                <CardDescription>
-                  Update your name, division, and profile photo
-                </CardDescription>
+                <CardTitle>Informasi Profil</CardTitle>
+                <CardDescription>Perbarui nama, divisi, dan foto profil Anda</CardDescription>
               </div>
               {!isEditingProfile && !avatarFile && (
                 <Button
@@ -194,15 +224,13 @@ export const SettingsPage = () => {
                   }}
                 >
                   <Edit2 className="h-4 w-4 mr-2" />
-                  Edit Profile
+                  Edit Profil
                 </Button>
               )}
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {/* Avatar + info */}
               <div className="flex items-start gap-5">
-                {/* Avatar with camera hover overlay */}
                 <div className="relative group flex-shrink-0">
                   <Avatar className="h-24 w-24 ring-2 ring-border">
                     <AvatarImage src={displayAvatar} alt={user.name} className="object-cover" />
@@ -215,10 +243,10 @@ export const SettingsPage = () => {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Change photo"
+                    title="Ganti foto"
                   >
                     <Camera className="h-6 w-6 text-white" />
-                    <span className="text-white text-[10px] mt-1 font-medium">Change</span>
+                    <span className="text-white text-[10px] mt-1 font-medium">Ganti</span>
                   </button>
 
                   <input
@@ -237,59 +265,48 @@ export const SettingsPage = () => {
                     {user.division && <Badge variant="secondary">{user.division}</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground pt-1">
-                    Hover photo to change · JPG, PNG, WebP · Max 5MB
+                    Arahkan kursor ke foto untuk mengganti · JPG, PNG, WebP · Maks 5MB
                   </p>
                   {avatarFile && (
                     <p className="text-xs text-primary font-medium">
-                      ✓ New photo selected — click Save Changes to apply
+                      ✓ Foto baru dipilih — klik Simpan Perubahan untuk menerapkan
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Profile form */}
               <form onSubmit={onUpdateProfile} className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="name">Nama Lengkap</Label>
                     <Input
                       id="name"
                       value={isEditingProfile ? profileData.name : user.name}
-                      onChange={(e) =>
-                        setProfileData((prev) => ({ ...prev, name: e.target.value }))
-                      }
+                      onChange={(e) => setProfileData((prev) => ({ ...prev, name: e.target.value }))}
                       readOnly={!isEditingProfile}
                       className={!isEditingProfile ? 'bg-muted' : ''}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Email Address</Label>
+                    <Label>Alamat Email</Label>
                     <Input value={user.email} readOnly className="bg-muted opacity-70" />
-                    <p className="text-[10px] text-muted-foreground italic">
-                      * Email cannot be changed
-                    </p>
+                    <p className="text-[10px] text-muted-foreground italic">* Email tidak dapat diubah</p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="division">Division</Label>
+                    <Label htmlFor="division">Divisi</Label>
                     <Input
                       id="division"
-                      value={
-                        isEditingProfile
-                          ? profileData.division
-                          : user.division || 'Not assigned'
-                      }
-                      onChange={(e) =>
-                        setProfileData((prev) => ({ ...prev, division: e.target.value }))
-                      }
+                      value={isEditingProfile ? profileData.division : (user.division || 'Belum ditentukan')}
+                      onChange={(e) => setProfileData((prev) => ({ ...prev, division: e.target.value }))}
                       readOnly={!isEditingProfile}
                       className={!isEditingProfile ? 'bg-muted' : ''}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Account Created</Label>
+                    <Label>Akun Dibuat</Label>
                     <Input
                       value={new Date(user.created_at).toLocaleDateString('id-ID', {
                         day: 'numeric', month: 'long', year: 'numeric',
@@ -300,22 +317,14 @@ export const SettingsPage = () => {
                   </div>
                 </div>
 
-                {/* Action buttons — visible when editing text or a photo is queued */}
                 {(isEditingProfile || avatarFile) && (
                   <div className="flex justify-end gap-2 pt-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={handleCancelEdit}
-                      disabled={updateProfile.isPending}
-                    >
-                      Cancel
+                    <Button type="button" variant="ghost" onClick={handleCancelEdit} disabled={updateProfile.isPending}>
+                      Batal
                     </Button>
                     <Button type="submit" disabled={updateProfile.isPending}>
-                      {updateProfile.isPending && (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      )}
-                      Save Changes
+                      {updateProfile.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Simpan Perubahan
                     </Button>
                   </div>
                 )}
@@ -328,61 +337,57 @@ export const SettingsPage = () => {
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Choose when and how you want to be notified</CardDescription>
+              <CardTitle>Preferensi Notifikasi</CardTitle>
+              <CardDescription>Pilih kapan dan bagaimana Anda ingin diberitahu</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
-                <h4 className="text-sm font-medium">Meeting Reminders</h4>
+                <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Pengingat Rapat
+                </h4>
                 {[
-                  { key: 'notification_24h' as const, label: '24 Hours Before', desc: 'Receive a reminder 1 day before your meeting' },
-                  { key: 'notification_3h' as const, label: '3 Hours Before', desc: 'Receive a reminder 3 hours before your meeting' },
-                  { key: 'notification_30m' as const, label: '30 Minutes Before', desc: 'Receive a final reminder 30 minutes before your meeting' },
+                  { key: 'notification_24h' as const, label: '24 Jam Sebelumnya', desc: 'Terima pengingat 1 hari sebelum rapat' },
+                  { key: 'notification_3h'  as const, label: '3 Jam Sebelumnya',  desc: 'Terima pengingat 3 jam sebelum rapat' },
+                  { key: 'notification_30m' as const, label: '30 Menit Sebelumnya', desc: 'Terima pengingat terakhir 30 menit sebelum rapat' },
                 ].map(({ key, label, desc }, i) => (
-                  <div
-                    key={key}
-                    className={`flex items-center justify-between ${i > 0 ? 'border-t pt-4' : ''}`}
-                  >
+                  <div key={key} className={`flex items-center justify-between ${i > 0 ? 'border-t pt-4' : ''}`}>
                     <div className="space-y-0.5">
                       <Label>{label}</Label>
                       <p className="text-sm text-muted-foreground">{desc}</p>
                     </div>
                     <Switch
                       checked={prefs[key]}
-                      onCheckedChange={(checked) =>
-                        setPrefs((prev) => ({ ...prev, [key]: checked }))
-                      }
+                      onCheckedChange={(checked) => setPrefs((prev) => ({ ...prev, [key]: checked }))}
                     />
                   </div>
                 ))}
               </div>
 
               <div className="space-y-4 border-t pt-6">
-                <h4 className="text-sm font-medium">Communication Channels</h4>
+                <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Saluran Komunikasi
+                </h4>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Email Notifications</Label>
+                    <Label>Notifikasi Email</Label>
                     <p className="text-sm text-muted-foreground">
-                      Receive request updates and reminders via email
+                      Terima pembaruan permintaan dan pengingat melalui email
                     </p>
                   </div>
                   <Switch
                     checked={prefs.email_notifications}
-                    onCheckedChange={(checked) =>
-                      setPrefs((prev) => ({ ...prev, email_notifications: checked }))
-                    }
+                    onCheckedChange={(checked) => setPrefs((prev) => ({ ...prev, email_notifications: checked }))}
                   />
                 </div>
               </div>
 
               <div className="pt-4 flex justify-end">
                 <Button onClick={onUpdatePreferences} disabled={updatePreferences.isPending}>
-                  {updatePreferences.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  Save Preferences
+                  {updatePreferences.isPending
+                    ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    : <Save className="h-4 w-4 mr-2" />
+                  }
+                  Simpan Preferensi
                 </Button>
               </div>
             </CardContent>
@@ -391,102 +396,196 @@ export const SettingsPage = () => {
 
         {/* ── Security Tab ──────────────────────────────────── */}
         <TabsContent value="security">
-          <Card>
-            <CardHeader>
-              <CardTitle>Change Password</CardTitle>
-              <CardDescription>Update your password to keep your account secure</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={onUpdatePassword} className="space-y-4 max-w-md">
-                <div className="space-y-2">
-                  <Label htmlFor="current_password">Current Password</Label>
-                  <Input
-                    id="current_password"
-                    name="current_password"
-                    type="password"
-                    value={passwordData.current_password}
-                    onChange={handlePasswordChange}
-                    required
+          <div className="space-y-6">
+            {/* OTP Login Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-primary" />
+                  <CardTitle>Login Dua Langkah (OTP)</CardTitle>
+                </div>
+                <CardDescription>
+                  Tambahkan lapisan keamanan ekstra. Kode OTP dikirim ke email Anda setiap kali login.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-1">
+                    <p className="font-medium text-sm">Login dengan OTP Email</p>
+                    <p className="text-sm text-muted-foreground">
+                      {prefs.otp_login_enabled
+                        ? '🔒 Aktif — kode OTP dikirim ke email setiap login'
+                        : '🔓 Nonaktif — login langsung dengan email & password'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={prefs.otp_login_enabled}
+                    onCheckedChange={(checked) => setPrefs((prev) => ({ ...prev, otp_login_enabled: checked }))}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new_password">New Password</Label>
-                  <Input
-                    id="new_password"
-                    name="new_password"
-                    type="password"
-                    value={passwordData.new_password}
-                    onChange={handlePasswordChange}
-                    required
-                  />
+
+                {prefs.otp_login_enabled && (
+                  <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3">
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
+                      ⚠️ Pastikan Anda memiliki akses ke email <strong>{user.email}</strong> agar
+                      dapat menerima kode OTP setiap kali login.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <Button
+                    onClick={onUpdatePreferences}
+                    disabled={updatePreferences.isPending}
+                    variant={prefs.otp_login_enabled ? 'default' : 'outline'}
+                  >
+                    {updatePreferences.isPending
+                      ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      : <Save className="h-4 w-4 mr-2" />
+                    }
+                    Simpan Pengaturan Keamanan
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm_password">Confirm New Password</Label>
-                  <Input
-                    id="confirm_password"
-                    name="confirm_password"
-                    type="password"
-                    value={passwordData.confirm_password}
-                    onChange={handlePasswordChange}
-                    required
-                  />
-                </div>
-                <Button type="submit" disabled={changePassword.isPending} className="mt-2">
-                  {changePassword.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Lock className="h-4 w-4 mr-2" />
-                  )}
-                  Update Password
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            {/* Change Password Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Ubah Password</CardTitle>
+                <CardDescription>Perbarui password Anda untuk menjaga keamanan akun</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={onUpdatePassword} className="space-y-4 max-w-md">
+                  <div className="space-y-2">
+                    <Label htmlFor="current_password">Password Saat Ini</Label>
+                    <Input id="current_password" name="current_password" type="password"
+                      value={passwordData.current_password} onChange={handlePasswordChange} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new_password">Password Baru</Label>
+                    <Input id="new_password" name="new_password" type="password"
+                      value={passwordData.new_password} onChange={handlePasswordChange} required minLength={6} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm_password">Konfirmasi Password Baru</Label>
+                    <Input id="confirm_password" name="confirm_password" type="password"
+                      value={passwordData.confirm_password} onChange={handlePasswordChange} required />
+                  </div>
+                  <Button type="submit" disabled={changePassword.isPending} className="mt-2">
+                    {changePassword.isPending
+                      ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      : <Lock className="h-4 w-4 mr-2" />
+                    }
+                    Perbarui Password
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* ── Appearance Tab ────────────────────────────────── */}
         <TabsContent value="appearance">
           <Card>
             <CardHeader>
-              <CardTitle>Appearance Settings</CardTitle>
-              <CardDescription>Customize how the application looks for you</CardDescription>
+              <CardTitle>Pengaturan Tampilan</CardTitle>
+              <CardDescription>Sesuaikan tampilan aplikasi untuk Anda</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
-                <Label>Theme Mode</Label>
+                <Label>Mode Tema</Label>
                 <div className="grid grid-cols-3 gap-4 max-w-md">
-                  <Button
-                    variant={theme === 'light' ? 'default' : 'outline'}
-                    className="flex flex-col h-auto py-4 gap-2"
-                    onClick={() => setTheme('light')}
-                  >
-                    <Sun className="h-6 w-6" />
-                    <span>Light</span>
+                  <Button variant={theme === 'light' ? 'default' : 'outline'}
+                    className="flex flex-col h-auto py-4 gap-2" onClick={() => setTheme('light')}>
+                    <Sun className="h-6 w-6" /><span>Terang</span>
                   </Button>
-                  <Button
-                    variant={theme === 'dark' ? 'default' : 'outline'}
-                    className="flex flex-col h-auto py-4 gap-2"
-                    onClick={() => setTheme('dark')}
-                  >
-                    <Moon className="h-6 w-6" />
-                    <span>Dark</span>
+                  <Button variant={theme === 'dark' ? 'default' : 'outline'}
+                    className="flex flex-col h-auto py-4 gap-2" onClick={() => setTheme('dark')}>
+                    <Moon className="h-6 w-6" /><span>Gelap</span>
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="flex flex-col h-auto py-4 gap-2 opacity-50"
-                    disabled
-                  >
-                    <Monitor className="h-6 w-6" />
-                    <span>System</span>
+                  <Button variant="outline" className="flex flex-col h-auto py-4 gap-2 opacity-50" disabled>
+                    <Monitor className="h-6 w-6" /><span>Sistem</span>
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  * System theme automatically matches your device settings
+                  * Tema sistem secara otomatis menyesuaikan pengaturan perangkat Anda
                 </p>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ── System Tab (room_admin only) ───────────────────── */}
+        {isAdmin && (
+          <TabsContent value="system">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Settings2 className="h-5 w-5 text-primary" />
+                  <CardTitle>Pengaturan Sistem</CardTitle>
+                </div>
+                <CardDescription>
+                  Konfigurasi sistem yang berlaku untuk semua pengguna. Hanya Admin yang dapat mengubah ini.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {isLoadingSystemSettings ? (
+                  <div className="space-y-4">
+                    <Skeleton className="h-16 w-full rounded-lg" />
+                    <Skeleton className="h-10 w-32 ml-auto" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Email Verification Toggle */}
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                        Registrasi
+                      </h4>
+                      <div className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-1">
+                          <p className="font-medium text-sm">Verifikasi Email saat Registrasi</p>
+                          <p className="text-sm text-muted-foreground">
+                            Jika aktif, pengguna baru harus memverifikasi email mereka dengan
+                            kode OTP sebelum akun aktif dan bisa digunakan untuk login.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={sysPrefs.email_verification_enabled}
+                          onCheckedChange={(checked) =>
+                            setSysPrefs((prev) => ({ ...prev, email_verification_enabled: checked }))
+                          }
+                        />
+                      </div>
+
+                      {sysPrefs.email_verification_enabled && (
+                        <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3">
+                          <p className="text-xs text-blue-800 dark:text-blue-300">
+                            ℹ️ Pastikan konfigurasi SMTP sudah benar di server agar email OTP dapat terkirim.
+                            Cek variabel <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">SMTP_*</code> di file <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">.env</code>.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 flex justify-end">
+                      <Button
+                        onClick={onSaveSystemSettings}
+                        disabled={updateSystemSettings.isPending}
+                      >
+                        {updateSystemSettings.isPending
+                          ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          : <Save className="h-4 w-4 mr-2" />
+                        }
+                        Simpan Pengaturan Sistem
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

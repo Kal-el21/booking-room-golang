@@ -11,25 +11,30 @@ import (
 	"gorm.io/gorm"
 )
 
-// SetupRoutes configures all application routes and returns services that might be needed for background jobs
+// SetupRoutes configures all application routes and returns services needed for background jobs.
 func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
-	// Initialize repositories
+	// ── Repositories ────────────────────────────────────────────────────────
 	userRepo := repositories.NewUserRepository(db)
 	roomRepo := repositories.NewRoomRepository(db)
 	requestRepo := repositories.NewRequestRepository(db)
 	bookingRepo := repositories.NewBookingRepository(db)
 	notificationRepo := repositories.NewNotificationRepository(db)
+	otpRepo := repositories.NewOTPRepository(db)
+	systemSettingRepo := repositories.NewSystemSettingRepository(db) // NEW
 
-	// Initialize services
+	// ── Services ────────────────────────────────────────────────────────────
 	authService := services.NewAuthService(userRepo)
+	otpService := services.NewOTPService(otpRepo, userRepo)
+	systemSettingService := services.NewSystemSettingService(systemSettingRepo) // NEW
 	userService := services.NewUserService(userRepo)
 	roomService := services.NewRoomService(roomRepo)
 	notificationService := services.NewNotificationService(notificationRepo)
 	requestService := services.NewRequestService(requestRepo, bookingRepo, roomRepo, notificationRepo, notificationService, userRepo, db)
 	bookingService := services.NewBookingService(bookingRepo, requestRepo, notificationRepo, notificationService)
 
-	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(authService)
+	// ── Handlers ────────────────────────────────────────────────────────────
+	authHandler := handlers.NewAuthHandler(authService, otpService, systemSettingService) // updated signature
+	systemSettingHandler := handlers.NewSystemSettingHandler(systemSettingService)        // NEW
 	userHandler := handlers.NewUserHandler(userService)
 	roomHandler := handlers.NewRoomHandler(roomService)
 	requestHandler := handlers.NewRequestHandler(requestService)
@@ -37,113 +42,114 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	uploadHandler := handlers.NewUploadHandler(roomService)
 
-	// ============================================================
-	// STATIC FILES - Serve uploaded images
-	// ============================================================
-	// Accessible at: /uploads/users/<filename> and /uploads/rooms/<filename>
+	// ── Static files ─────────────────────────────────────────────────────────
 	router.Static("/uploads/users", "./internal/uploads/users")
 	router.Static("/uploads/rooms", "./internal/uploads/rooms")
 
-	// API v1 group
+	// ── API v1 ───────────────────────────────────────────────────────────────
 	v1 := router.Group("/api/v1")
 	{
-		// ========================================
+		// ====================================================
 		// PUBLIC ROUTES (No Authentication)
-		// ========================================
+		// ====================================================
 		auth := v1.Group("/auth")
 		{
+			// Classic auth
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/refresh", authHandler.RefreshToken)
+
+			// Email verification (called before user has a token)
+			auth.POST("/verify-email", authHandler.VerifyEmail)
+			auth.POST("/resend-verification", authHandler.ResendVerificationEmail)
+
+			// Login OTP (called before user has a token)
+			auth.POST("/verify-login-otp", authHandler.VerifyLoginOTP)
+			auth.POST("/resend-login-otp", authHandler.ResendLoginOTP)
 		}
 
-		// ========================================
+		// ====================================================
 		// PROTECTED ROUTES (Require Authentication)
-		// ========================================
+		// ====================================================
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware())
 		{
-			// Auth routes
+			// Auth
 			protected.POST("/auth/logout", authHandler.Logout)
 
-			// User profile routes — PUT /users/me accepts multipart/form-data
-			// with optional fields: name, division, avatar (file)
+			// User profile
 			protected.GET("/users/me", userHandler.GetCurrentUser)
 			protected.PUT("/users/me", userHandler.UpdateCurrentUser)
 			protected.PUT("/users/change-password", userHandler.ChangePassword)
 			protected.PUT("/users/preferences", userHandler.UpdatePreferences)
 
-			// Room routes (read-only for all users)
+			// Rooms (read-only for all authenticated users)
 			protected.GET("/rooms", roomHandler.ListRooms)
 			protected.GET("/rooms/:id", roomHandler.GetRoom)
 			protected.POST("/rooms/:id/availability", roomHandler.CheckAvailability)
 
-			// Room request routes (all authenticated users)
+			// Room requests
 			protected.GET("/room-requests", requestHandler.ListRequests)
 			protected.POST("/room-requests", requestHandler.CreateRequest)
 			protected.GET("/room-requests/:id", requestHandler.GetRequest)
 			protected.PUT("/room-requests/:id", requestHandler.UpdateRequest)
 			protected.DELETE("/room-requests/:id", requestHandler.DeleteRequest)
 
-			// Booking routes (read-only for users, manage for GA)
+			// Bookings
 			protected.GET("/bookings", bookingHandler.ListBookings)
 			protected.GET("/bookings/:id", bookingHandler.GetBooking)
 			protected.POST("/bookings/auto-complete", bookingHandler.AutoCompleteBookings)
 
-			// Notification routes
+			// Notifications
 			protected.GET("/notifications", notificationHandler.GetNotifications)
-			protected.GET("/notifications/stream", notificationHandler.StreamNotifications) // SSE endpoint
+			protected.GET("/notifications/stream", notificationHandler.StreamNotifications)
 			protected.GET("/notifications/unread-count", notificationHandler.GetUnreadCount)
 			protected.PUT("/notifications/:id/mark-as-read", notificationHandler.MarkAsRead)
 			protected.POST("/notifications/mark-all-as-read", notificationHandler.MarkAllAsRead)
 			protected.DELETE("/notifications/:id", notificationHandler.DeleteNotification)
 
-			// Calendar (accessible by all authenticated users)
+			// Calendar
 			protected.GET("/calendar", bookingHandler.GetCalendar)
 
-			// ========================================
-			// ROOM ADMIN ROUTES (Room Admin only)
-			// ========================================
+			// ================================================
+			// ROOM ADMIN ROUTES
+			// ================================================
 			roomAdmin := protected.Group("")
 			roomAdmin.Use(middleware.RequireRoomAdmin())
 			{
-				// Room Management (Create, Update, Delete)
 				roomAdmin.POST("/rooms", roomHandler.CreateRoom)
 				roomAdmin.PUT("/rooms/:id", roomHandler.UpdateRoom)
 				roomAdmin.DELETE("/rooms/:id", roomHandler.DeleteRoom)
-
-				// Room image upload (room_admin only)
 				roomAdmin.POST("/rooms/:id/image", uploadHandler.UploadRoomImage)
 
-				// User Management (Add, Update, Delete, Reset Password)
 				roomAdmin.PUT("/users/:id", userHandler.UpdateUser)
 				roomAdmin.DELETE("/users/:id", userHandler.DeleteUser)
 				roomAdmin.POST("/users/:id/reset-password", userHandler.ResetPassword)
+
+				// System settings (room_admin only)
+				roomAdmin.GET("/admin/settings", systemSettingHandler.GetSettings)
+				roomAdmin.PUT("/admin/settings", systemSettingHandler.UpdateSettings)
 			}
 
-			// ========================================
-			// ROOM ADMIN & GA ROUTES (Can view users)
-			// ========================================
+			// ================================================
+			// ROOM ADMIN & GA ROUTES
+			// ================================================
 			adminGA := protected.Group("")
 			adminGA.Use(middleware.RequireRole(models.RoleRoomAdmin, models.RoleGA))
 			{
-				// Both can view users
 				adminGA.GET("/users", userHandler.ListUsers)
 				adminGA.GET("/users/:id", userHandler.GetUser)
 			}
 
-			// ========================================
-			// GA ROUTES (General Affairs only)
-			// ========================================
+			// ================================================
+			// GA ROUTES
+			// ================================================
 			ga := protected.Group("")
 			ga.Use(middleware.RequireGA())
 			{
-				// Request approval
 				ga.POST("/room-requests/:id/approve", requestHandler.ApproveRequest)
 				ga.POST("/room-requests/:id/reject", requestHandler.RejectRequest)
 				ga.GET("/room-requests/:id/available-rooms", requestHandler.GetAvailableRooms)
-
-				// Booking management
 				ga.DELETE("/bookings/:id", bookingHandler.CancelBooking)
 			}
 		}

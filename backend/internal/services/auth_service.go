@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/config"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/models"
@@ -20,6 +21,8 @@ func NewAuthService(userRepo *repositories.UserRepository) *AuthService {
 		userRepo: userRepo,
 	}
 }
+
+// ── Input / Response types ────────────────────────────────────────────────────
 
 type RegisterInput struct {
 	Name     string          `json:"name" binding:"required,min=2"`
@@ -40,15 +43,21 @@ type LoginResponse struct {
 	AccessToken  string              `json:"access_token"`
 	RefreshToken string              `json:"refresh_token"`
 	TokenType    string              `json:"token_type"`
-	ExpiresIn    int                 `json:"expires_in"` // in seconds
+	ExpiresIn    int                 `json:"expires_in"` // seconds
 }
 
-// Register registers a new user
+// ── Register ─────────────────────────────────────────────────────────────────
+
+// Register creates a new user account.
+//
+// When ENABLE_EMAIL_VERIFICATION=true the account is set inactive (IsActive=false)
+// so the user cannot log in until they verify their email. The caller (handler)
+// is responsible for triggering the OTP email after this returns.
 func (s *AuthService) Register(input RegisterInput) (*models.User, error) {
-	// Check if email already exists
+	// Check email uniqueness
 	existingUser, err := s.userRepo.FindByEmail(input.Email)
 	if err == nil && existingUser.ID > 0 {
-		return nil, errors.New("email already registered")
+		return nil, errors.New("email sudah terdaftar")
 	}
 
 	// Hash password
@@ -57,74 +66,87 @@ func (s *AuthService) Register(input RegisterInput) (*models.User, error) {
 		return nil, err
 	}
 
-	// Set default role if not provided
+	// Default role
 	role := input.Role
 	if role == "" {
 		role = models.RoleUser
 	}
 
-	// Create user
+	// When email verification is required the account starts as inactive
+	isActive := true
+	if config.App.Feature.EnableEmailVerification {
+		isActive = false
+	}
+
 	user := &models.User{
 		Name:     input.Name,
 		Email:    input.Email,
 		Password: hashedPassword,
 		Role:     role,
 		Division: input.Division,
-		IsActive: true,
+		IsActive: isActive,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
 		return nil, err
 	}
 
-	// Create default preferences
-	_, err = s.userRepo.GetOrCreatePreferences(user.ID)
-	if err != nil {
+	// Create default notification preferences
+	if _, err := s.userRepo.GetOrCreatePreferences(user.ID); err != nil {
 		return nil, err
 	}
 
 	return user, nil
 }
 
-// Login authenticates user and returns tokens
-func (s *AuthService) Login(input LoginInput, ipAddress, userAgent *string) (*LoginResponse, error) {
-	// Find user by email
+// ── Credentials & session helpers ────────────────────────────────────────────
+
+// ValidateCredentials checks that the email exists, the account is active, and
+// the password is correct. Returns the User on success, an error otherwise.
+// Used by both the classic Login path and the OTP-login first step.
+func (s *AuthService) ValidateCredentials(input LoginInput) (*models.User, error) {
 	user, err := s.userRepo.FindByEmail(input.Email)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, errors.New("invalid email or password")
+			return nil, errors.New("email atau password salah")
 		}
 		return nil, err
 	}
 
-	// Check if user is active
 	if !user.IsActive {
-		return nil, errors.New("account is inactive")
+		// Distinguish between "not yet verified" and "disabled by admin"
+		if user.EmailVerifiedAt == nil && config.App.Feature.EnableEmailVerification {
+			return nil, errors.New("akun belum diverifikasi, silakan cek email Anda")
+		}
+		return nil, errors.New("akun tidak aktif")
 	}
 
-	// Check password
 	if err := utils.CheckPassword(user.Password, input.Password); err != nil {
-		return nil, errors.New("invalid email or password")
+		return nil, errors.New("email atau password salah")
 	}
 
-	// Generate tokens
-	accessToken, refreshToken, accessExpiry, refreshExpiry, err := utils.GenerateToken(user, input.RememberMe)
+	return user, nil
+}
+
+// CreateLoginSession generates JWT tokens, stores a UserSession record, and
+// returns the complete LoginResponse. Called after credentials (and optionally OTP)
+// have already been validated.
+func (s *AuthService) CreateLoginSession(user *models.User, rememberMe bool, ipAddress, userAgent *string) (*LoginResponse, error) {
+	accessToken, refreshToken, accessExpiry, refreshExpiry, err := utils.GenerateToken(user, rememberMe)
 	if err != nil {
 		return nil, err
 	}
 
-	// Calculate token lifetime in days
 	tokenLifetimeDays := 1
-	if input.RememberMe {
+	if rememberMe {
 		tokenLifetimeDays = 7
 	}
 
-	// Create session
 	session := &models.UserSession{
 		UserID:                user.ID,
 		AccessToken:           accessToken,
 		RefreshToken:          &refreshToken,
-		RememberMe:            input.RememberMe,
+		RememberMe:            rememberMe,
 		TokenLifetimeDays:     tokenLifetimeDays,
 		IPAddress:             ipAddress,
 		UserAgent:             userAgent,
@@ -136,8 +158,7 @@ func (s *AuthService) Login(input LoginInput, ipAddress, userAgent *string) (*Lo
 		return nil, err
 	}
 
-	// Calculate expires_in (in seconds)
-	expiresIn := int(config.App.JWT.GetAccessTokenDuration(input.RememberMe).Seconds())
+	expiresIn := int(config.App.JWT.GetAccessTokenDuration(rememberMe).Seconds())
 
 	return &LoginResponse{
 		User:         user.ToResponse(),
@@ -148,55 +169,96 @@ func (s *AuthService) Login(input LoginInput, ipAddress, userAgent *string) (*Lo
 	}, nil
 }
 
-// Logout logs out user by deleting session
+// CreateSessionForUser looks up a user by ID then calls CreateLoginSession.
+// Used by the OTP-login second step where we already have the user ID.
+func (s *AuthService) CreateSessionForUser(userID uint, rememberMe bool, ipAddress, userAgent *string) (*LoginResponse, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, errors.New("user tidak ditemukan")
+	}
+
+	if !user.IsActive {
+		return nil, errors.New("akun tidak aktif")
+	}
+
+	return s.CreateLoginSession(user, rememberMe, ipAddress, userAgent)
+}
+
+// ActivateUser marks the user as active and records the email verification timestamp.
+// Called after a successful email-verification OTP check.
+func (s *AuthService) ActivateUser(userID uint) (*models.User, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	user.IsActive = true
+	user.EmailVerifiedAt = &now
+
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, err
+	}
+
+	return s.userRepo.FindByID(userID)
+}
+
+// ── Classic Login (no OTP) ────────────────────────────────────────────────────
+
+// Login is the classic single-step login used when ENABLE_OTP_LOGIN=false.
+// It validates credentials and immediately creates a session.
+func (s *AuthService) Login(input LoginInput, ipAddress, userAgent *string) (*LoginResponse, error) {
+	user, err := s.ValidateCredentials(input)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.CreateLoginSession(user, input.RememberMe, ipAddress, userAgent)
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+
 func (s *AuthService) Logout(accessToken string) error {
 	return s.userRepo.DeleteSession(accessToken)
 }
 
-// GetCurrentUser gets current authenticated user
+// ── Token refresh ─────────────────────────────────────────────────────────────
+
 func (s *AuthService) GetCurrentUser(userID uint) (*models.User, error) {
 	return s.userRepo.FindByID(userID)
 }
 
-// RefreshToken refreshes access token
 func (s *AuthService) RefreshToken(refreshToken string) (*LoginResponse, error) {
-	// Validate refresh token
 	claims, err := utils.ValidateToken(refreshToken)
 	if err != nil {
-		return nil, errors.New("invalid refresh token")
+		return nil, errors.New("refresh token tidak valid")
 	}
 
-	// Find user
 	user, err := s.userRepo.FindByID(claims.UserID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check if user is active
 	if !user.IsActive {
-		return nil, errors.New("account is inactive")
+		return nil, errors.New("akun tidak aktif")
 	}
 
-	// Find session
 	session, err := s.userRepo.FindSessionByRefreshToken(refreshToken, user.ID)
 	if err != nil {
-		return nil, errors.New("session not found")
+		return nil, errors.New("sesi tidak ditemukan")
 	}
 
-	// Generate new access token
 	newAccessToken, accessExpiry, err := utils.RefreshAccessToken(refreshToken, session.RememberMe)
 	if err != nil {
 		return nil, err
 	}
 
-	// Update session
 	session.AccessToken = newAccessToken
 	session.AccessTokenExpiresAt = accessExpiry
 	if err := s.userRepo.UpdateSession(session); err != nil {
 		return nil, err
 	}
 
-	// Calculate expires_in
 	expiresIn := int(config.App.JWT.GetAccessTokenDuration(session.RememberMe).Seconds())
 
 	return &LoginResponse{

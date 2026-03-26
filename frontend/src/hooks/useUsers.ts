@@ -25,10 +25,10 @@ export const useUpdateUser = () => {
       userService.updateUser(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success('User updated successfully');
+      toast.success('User berhasil diperbarui');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update user');
+      toast.error(error?.response?.data?.error || error.message || 'Gagal memperbarui user');
     },
   });
 };
@@ -40,10 +40,10 @@ export const useDeleteUser = () => {
     mutationFn: userService.deleteUser,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success('User deleted successfully');
+      toast.success('User berhasil dihapus');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to delete user');
+      toast.error(error?.response?.data?.error || error.message || 'Gagal menghapus user');
     },
   });
 };
@@ -55,10 +55,10 @@ export const useUpdatePreferences = () => {
     mutationFn: userService.updatePreferences,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
-      toast.success('Preferences updated successfully');
+      toast.success('Preferensi berhasil disimpan');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update preferences');
+      toast.error(error?.response?.data?.error || error.message || 'Gagal menyimpan preferensi');
     },
   });
 };
@@ -70,10 +70,10 @@ export const useUpdateProfile = () => {
     mutationFn: userService.updateMyProfile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
-      toast.success('Profile updated successfully');
+      toast.success('Profil berhasil diperbarui');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update profile');
+      toast.error(error?.response?.data?.error || error.message || 'Gagal memperbarui profil');
     },
   });
 };
@@ -82,10 +82,10 @@ export const useChangePassword = () => {
   return useMutation({
     mutationFn: userService.changePassword,
     onSuccess: () => {
-      toast.success('Password changed successfully');
+      toast.success('Password berhasil diubah');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to change password');
+      toast.error(error?.response?.data?.error || error.message || 'Gagal mengubah password');
     },
   });
 };

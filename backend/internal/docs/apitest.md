@@ -113,7 +113,7 @@ POST {{base_url}}/api/v1/auth/register
 
 ---
 
-### 1.5 Login (User) ⭐ IMPORTANT
+### 1.5 Login (User/Admin/GA) ⭐ IMPORTANT
 ```
 POST {{base_url}}/api/v1/auth/login
 ```
@@ -121,77 +121,90 @@ POST {{base_url}}/api/v1/auth/login
 **Body:**
 ```json
 {
-  "email": "john@example.com",
+  "email": "user@example.com",
   "password": "password123",
   "remember_me": false
 }
 ```
 
-**Tests Script (Auto-save token):**
+**Note:** If OTP is enabled in system settings or user preferences, this will return `otp_required: true`. You must then proceed to **1.6 Verify Login OTP**.
+
+**Tests Script (Auto-save tokens):**
 ```javascript
-// Go to "Tests" tab and paste this
 if (pm.response.code === 200) {
     var jsonData = pm.response.json();
-    pm.environment.set("user_token", jsonData.data.access_token);
-    console.log("User token saved:", jsonData.data.access_token);
+    if (jsonData.data.access_token) {
+        pm.environment.set("user_token", jsonData.data.access_token);
+        pm.environment.set("refresh_token", jsonData.data.refresh_token);
+        console.log("Tokens saved");
+    }
 }
 ```
 
 ---
 
-### 1.6 Login (Room Admin)
+### 1.6 Verify Login OTP
 ```
-POST {{base_url}}/api/v1/auth/login
+POST {{base_url}}/api/v1/auth/verify-login-otp
 ```
 
 **Body:**
 ```json
 {
-  "email": "admin@example.com",
-  "password": "password123",
+  "user_id": 1,
+  "code": "123456",
   "remember_me": false
-}
-```
-
-**Tests Script:**
-```javascript
-if (pm.response.code === 200) {
-    var jsonData = pm.response.json();
-    pm.environment.set("admin_token", jsonData.data.access_token);
-    console.log("Admin token saved:", jsonData.data.access_token);
 }
 ```
 
 ---
 
-### 1.7 Login (GA)
+### 1.7 Resend Login OTP
 ```
-POST {{base_url}}/api/v1/auth/login
+POST {{base_url}}/api/v1/auth/resend-login-otp
 ```
 
 **Body:**
 ```json
 {
-  "email": "ga@example.com",
-  "password": "password123",
-  "remember_me": false
-}
-```
-
-**Tests Script:**
-```javascript
-if (pm.response.code === 200) {
-    var jsonData = pm.response.json();
-    pm.environment.set("ga_token", jsonData.data.access_token);
-    console.log("GA token saved:", jsonData.data.access_token);
+  "user_id": 1
 }
 ```
 
 ---
 
-### 1.8 Get Current User (Me)
+### 1.8 Verify Email
 ```
-GET {{base_url}}/api/v1/auth/me
+POST {{base_url}}/api/v1/auth/verify-email
+```
+
+**Body:**
+```json
+{
+  "user_id": 1,
+  "code": "123456"
+}
+```
+
+---
+
+### 1.9 Refresh Token
+```
+POST {{base_url}}/api/v1/auth/refresh
+```
+
+**Body:**
+```json
+{
+  "refresh_token": "{{refresh_token}}"
+}
+```
+
+---
+
+### 1.10 Get Current User (Me)
+```
+GET {{base_url}}/api/v1/users/me
 ```
 
 **Headers:**
@@ -201,7 +214,7 @@ Authorization: Bearer {{user_token}}
 
 ---
 
-### 1.9 Logout
+### 1.11 Logout
 ```
 POST {{base_url}}/api/v1/auth/logout
 ```
@@ -310,9 +323,23 @@ Content-Type: application/json
 }
 ```
 
+### 2.6 Upload Room Image (Room Admin Only) ⭐ MULTIPART
+```
+POST {{base_url}}/api/v1/rooms/{{room_id}}/image
+```
+
+**Headers:**
+```
+Authorization: Bearer {{admin_token}}
+Content-Type: multipart/form-data
+```
+
+**Body (form-data):**
+- `image`: [Select File] (JPG/PNG/WebP)
+
 ---
 
-### 2.6 Delete Room
+### 2.7 Delete Room
 ```
 DELETE {{base_url}}/api/v1/rooms/{{room_id}}
 ```
@@ -671,6 +698,20 @@ Authorization: Bearer {{ga_token}}
 
 ---
 
+### 5.5 Auto-complete Old Bookings
+```
+POST {{base_url}}/api/v1/bookings/auto-complete
+```
+
+**Headers:**
+```
+Authorization: Bearer {{user_token}}
+```
+
+**Note:** This marks past bookings as 'completed'. It is also called automatically when listing bookings.
+
+---
+
 ## 📆 6. Calendar (All Roles)
 
 ### 6.1 Get Calendar View
@@ -837,9 +878,47 @@ eventSource.onerror = (error) => {
 
 ---
 
-## 👥 8. User Management
+## 🛠️ 8. System Settings (Room Admin Only)
 
-### 8.1 Get My Profile
+### 8.1 Get System Settings
+```
+GET {{base_url}}/api/v1/admin/settings
+```
+
+**Headers:**
+```
+Authorization: Bearer {{admin_token}}
+```
+
+---
+
+### 8.2 Update System Settings
+```
+PUT {{base_url}}/api/v1/admin/settings
+```
+
+**Headers:**
+```
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "app_name": "Room Booking System",
+  "enable_registration": true,
+  "enable_otp_login": false,
+  "enable_email_verification": true,
+  "max_booking_days_advance": 30
+}
+```
+
+---
+
+## 👥 9. User Management
+
+### 9.1 Get My Profile
 ```
 GET {{base_url}}/api/v1/users/me
 ```
@@ -851,7 +930,25 @@ Authorization: Bearer {{user_token}}
 
 ---
 
-### 8.2 Change My Password
+### 9.2 Update My Profile (with Avatar) ⭐ MULTIPART
+```
+PUT {{base_url}}/api/v1/users/me
+```
+
+**Headers:**
+```
+Authorization: Bearer {{user_token}}
+Content-Type: multipart/form-data
+```
+
+**Body (form-data):**
+- `name`: "John Doe Updated"
+- `division`: "IT Department"
+- `avatar`: [Select File] (JPG/PNG/WebP)
+
+---
+
+### 9.3 Change My Password
 ```
 PUT {{base_url}}/api/v1/users/change-password
 ```
@@ -872,7 +969,7 @@ Content-Type: application/json
 
 ---
 
-### 8.3 Update My Preferences
+### 9.4 Update My Preferences
 ```
 PUT {{base_url}}/api/v1/users/preferences
 ```
@@ -889,13 +986,14 @@ Content-Type: application/json
   "notification_24h": true,
   "notification_3h": true,
   "notification_30m": false,
-  "email_notifications": true
+  "email_notifications": true,
+  "otp_login_enabled": true
 }
 ```
 
 ---
 
-### 8.4 List All Users (Room Admin & GA)
+### 9.5 List All Users (Room Admin & GA)
 ```
 GET {{base_url}}/api/v1/users?page=1&page_size=10
 ```
@@ -907,7 +1005,7 @@ Authorization: Bearer {{admin_token}}
 
 ---
 
-### 8.5 Get User Details (Room Admin & GA)
+### 9.6 Get User Details (Room Admin & GA)
 ```
 GET {{base_url}}/api/v1/users/2
 ```
@@ -919,7 +1017,7 @@ Authorization: Bearer {{admin_token}}
 
 ---
 
-### 8.6 Update User (Room Admin Only)
+### 9.7 Update User (Room Admin Only)
 ```
 PUT {{base_url}}/api/v1/users/2
 ```
@@ -941,7 +1039,7 @@ Content-Type: application/json
 
 ---
 
-### 8.7 Reset User Password (Room Admin Only)
+### 9.8 Reset User Password (Room Admin Only)
 ```
 POST {{base_url}}/api/v1/users/2/reset-password
 ```
@@ -961,7 +1059,7 @@ Content-Type: application/json
 
 ---
 
-### 8.8 Delete User (Room Admin Only)
+### 9.9 Delete User (Room Admin Only)
 ```
 DELETE {{base_url}}/api/v1/users/2
 ```

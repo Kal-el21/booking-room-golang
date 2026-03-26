@@ -10,7 +10,7 @@ type UserSession struct {
 	AccessToken           string     `gorm:"type:text;unique;not null" json:"access_token"`
 	RefreshToken          *string    `gorm:"type:text;unique" json:"refresh_token"`
 	RememberMe            bool       `gorm:"default:false" json:"remember_me"`
-	TokenLifetimeDays     int        `gorm:"not null" json:"token_lifetime_days"` // 1 or 7
+	TokenLifetimeDays     int        `gorm:"not null" json:"token_lifetime_days"`
 	DeviceName            *string    `gorm:"type:varchar(255)" json:"device_name"`
 	IPAddress             *string    `gorm:"type:varchar(45)" json:"ip_address"`
 	UserAgent             *string    `gorm:"type:text" json:"user_agent"`
@@ -20,53 +20,50 @@ type UserSession struct {
 	CreatedAt             time.Time  `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt             time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
 
-	// Relationships
 	User *User `gorm:"foreignKey:UserID" json:"-"`
 }
 
-// TableName specifies table name
 func (UserSession) TableName() string {
 	return "user_sessions"
 }
 
-// IsExpired checks if session is expired
 func (s *UserSession) IsExpired() bool {
 	return time.Now().After(s.AccessTokenExpiresAt)
 }
 
-// UpdateLastUsed updates last used timestamp
 func (s *UserSession) UpdateLastUsed() {
 	now := time.Now()
 	s.LastUsedAt = &now
 }
 
-// UserPreference for user notification preferences
+// UserPreference stores per-user notification and security preferences.
 type UserPreference struct {
 	ID                 uint      `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID             uint      `gorm:"unique;not null" json:"user_id"`
 	Notification24h    bool      `gorm:"default:true" json:"notification_24h"`
 	Notification3h     bool      `gorm:"default:true" json:"notification_3h"`
 	Notification30m    bool      `gorm:"default:true" json:"notification_30m"`
-	EmailNotifications bool      `gorm:"default:true" json:"email_notifications"`
+	EmailNotifications bool      `gorm:"default:false" json:"email_notifications"` // default OFF per user request
+	OtpLoginEnabled    bool      `gorm:"default:false" json:"otp_login_enabled"`   // NEW — user opts in to OTP on login
 	CreatedAt          time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
-	// Relationships
 	User *User `gorm:"foreignKey:UserID" json:"-"`
 }
 
-// TableName specifies table name
 func (UserPreference) TableName() string {
 	return "user_preferences"
 }
 
-// GetDefaultPreferences returns default preferences
+// GetDefaultPreferences returns default preferences for a new user.
+// Both OTP login and email notifications are OFF by default.
 func GetDefaultPreferences(userID uint) UserPreference {
 	return UserPreference{
 		UserID:             userID,
 		Notification24h:    true,
 		Notification3h:     true,
 		Notification30m:    true,
-		EmailNotifications: true,
+		EmailNotifications: false,
+		OtpLoginEnabled:    false,
 	}
 }

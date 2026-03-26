@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
@@ -8,52 +9,65 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { CalendarDays, Loader2, Moon, Sun } from 'lucide-react';
+import { authService, type LoginOTPPendingResponse } from '@/services/auth.service';
 
 export const LoginPage = () => {
-  const { login, user } = useAuth();
+  const { refreshUser, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
-  // Redirect logged-in users to their role-based dashboard
+  // Redirect if already authenticated
   useEffect(() => {
     if (user) {
-      const dashboardPath = getDashboardPath(user.role);
-      navigate(dashboardPath, { replace: true });
+      navigate(getDashboardPath(user.role), { replace: true });
     }
   }, [user, navigate]);
 
-  const getDashboardPath = (role: string) => {
-    switch (role) {
-      case 'user':
-        return '/user/dashboard';
-      case 'GA':
-        return '/ga/dashboard';
-      case 'room_admin':
-        return '/admin/dashboard';
-      default:
-        return '/user/dashboard';
-    }
-  };
-
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState<{
-    email: string;
-    password: string;
-    remember_me: boolean;
-  }>({
+  const [formData, setFormData] = useState({
     email: '',
     password: '',
     remember_me: false,
   });
+
+  const getDashboardPath = (role: string) => {
+    switch (role) {
+      case 'GA':         return '/ga/dashboard';
+      case 'room_admin': return '/admin/dashboard';
+      default:           return '/user/dashboard';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      await login(formData);
-    } catch {
-      // Error handled in AuthContext
+      const result = await authService.login(formData);
+
+      // OTP flow: backend returned a pending state
+      if ('data' in result && (result.data as LoginOTPPendingResponse).otp_required) {
+        const pending = result.data as LoginOTPPendingResponse;
+        navigate('/otp-login', {
+          state: {
+            userId: pending.user_id,
+            email: pending.email,
+            rememberMe: formData.remember_me,
+          },
+        });
+        return;
+      }
+
+      // Classic flow: tokens already saved by authService.login
+      await refreshUser();
+      toast.success('Login berhasil!');
+      // Redirect handled by AuthContext / useEffect above
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.error ??
+        err?.response?.data?.message ??
+        'Email atau password salah';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -61,23 +75,14 @@ export const LoginPage = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev: typeof formData) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       {/* Theme Toggle */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={toggleTheme}
-        className="absolute top-4 right-4"
-      >
-        {theme === 'light' ? (
-          <Moon className="h-5 w-5" />
-        ) : (
-          <Sun className="h-5 w-5" />
-        )}
+      <Button variant="ghost" size="icon" onClick={toggleTheme} className="absolute top-4 right-4">
+        {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
       </Button>
 
       <Card className="w-full max-w-md">
@@ -87,10 +92,8 @@ export const LoginPage = () => {
               <CalendarDays className="h-10 w-10 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-          <CardDescription>
-            Sign in to your Room Booking System account
-          </CardDescription>
+          <CardTitle className="text-2xl font-bold">Selamat Datang</CardTitle>
+          <CardDescription>Masuk ke Room Booking System</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
@@ -123,46 +126,34 @@ export const LoginPage = () => {
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="remember_me"
-                  checked={formData.remember_me}
-                  onCheckedChange={(checked) =>
-                    setFormData((prev) => ({ ...prev, remember_me: checked }))
-                  }
-                  disabled={isLoading}
-                />
-                <Label htmlFor="remember_me" className="text-sm cursor-pointer">
-                  Remember me for 7 days
-                </Label>
-              </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="remember_me"
+                checked={formData.remember_me}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, remember_me: checked }))
+                }
+                disabled={isLoading}
+              />
+              <Label htmlFor="remember_me" className="text-sm cursor-pointer">
+                Ingat saya selama 7 hari
+              </Label>
             </div>
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading}
-            >
+            <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
-                </>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Masuk...</>
               ) : (
-                'Sign In'
+                'Masuk'
               )}
             </Button>
 
             <div className="text-sm text-center text-muted-foreground">
-              Don't have an account?{' '}
-              <Link
-                to="/register"
-                className="text-primary hover:underline font-medium"
-              >
-                Sign up
+              Belum punya akun?{' '}
+              <Link to="/register" className="text-primary hover:underline font-medium">
+                Daftar
               </Link>
             </div>
           </CardFooter>

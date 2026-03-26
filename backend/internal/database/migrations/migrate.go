@@ -13,13 +13,13 @@ import (
 // Migrate runs all database migrations
 func Migrate(db *gorm.DB) error {
 	// Drop unique constraint on request_id before migration
-	// This allows multiple bookings per request (for multi-day and recurring)
+	// (allows multiple bookings per request for multi-day and recurring bookings)
 	if db.Migrator().HasTable("room_bookings") {
 		db.Exec("ALTER TABLE room_bookings DROP CONSTRAINT IF EXISTS room_bookings_request_id_key")
 		db.Exec("ALTER TABLE room_bookings DROP CONSTRAINT IF EXISTS uni_room_bookings_request_id")
 	}
 
-	// Auto migrate all models
+	// Auto migrate all models — OTPCode is added here
 	err := db.AutoMigrate(
 		&models.User{},
 		&models.Room{},
@@ -30,20 +30,19 @@ func Migrate(db *gorm.DB) error {
 		&models.UserSession{},
 		&models.UserPreference{},
 		&models.AuditLog{},
+		&models.OTPCode{},       // OTP codes
+		&models.SystemSetting{}, // NEW — system-wide admin settings
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	// Create indexes
 	if err := createIndexes(db); err != nil {
 		return fmt.Errorf("failed to create indexes: %w", err)
 	}
 
 	log.Println("✅ Database migration and indexing completed")
 
-	// Run Admin Seeding
 	if err := SeedAdmin(db); err != nil {
 		log.Printf("Warning: Failed to seed admin user: %v", err)
 	}
@@ -51,9 +50,8 @@ func Migrate(db *gorm.DB) error {
 	return nil
 }
 
-// createIndexes creates additional database indexes for performance
+// createIndexes creates additional composite indexes for performance
 func createIndexes(db *gorm.DB) error {
-	// Composite indexes for better query performance
 	indexes := []struct {
 		table   string
 		name    string
@@ -79,13 +77,22 @@ func createIndexes(db *gorm.DB) error {
 			name:    "idx_session_user_expires",
 			columns: []string{"user_id", "access_token_expires_at"},
 		},
+		// OTP indexes
+		{
+			table:   "otp_codes",
+			name:    "idx_otp_user_type_used",
+			columns: []string{"user_id", "type", "is_used"},
+		},
+		{
+			table:   "otp_codes",
+			name:    "idx_otp_expires_at",
+			columns: []string{"expires_at"},
+		},
 	}
 
 	for _, idx := range indexes {
-		// Check if index exists
 		hasIndex := db.Migrator().HasIndex(idx.table, idx.name)
 		if !hasIndex {
-			// Create index using raw SQL for composite indexes
 			sql := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (%s)",
 				idx.name,
 				idx.table,
@@ -100,7 +107,6 @@ func createIndexes(db *gorm.DB) error {
 	return nil
 }
 
-// joinColumns joins column names for SQL query
 func joinColumns(columns []string) string {
 	result := ""
 	for i, col := range columns {
@@ -112,7 +118,7 @@ func joinColumns(columns []string) string {
 	return result
 }
 
-// SeedAdmin creates initial admin user if it doesn't exist
+// SeedAdmin creates the initial admin user if it doesn't already exist
 func SeedAdmin(db *gorm.DB) error {
 	log.Println("🌱 Checking for admin user...")
 
@@ -121,7 +127,6 @@ func SeedAdmin(db *gorm.DB) error {
 	adminPassword := "rJsm8kFce4"
 	adminName := "Admin Indore"
 
-	// Check if admin user already exists
 	var count int64
 	db.Model(&models.User{}).Where("email = ?", adminEmail).Count(&count)
 	if count > 0 {
@@ -129,13 +134,11 @@ func SeedAdmin(db *gorm.DB) error {
 		return nil
 	}
 
-	// Hash password
 	hashedPassword, err := utils.HashPassword(adminPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Create admin user
 	admin := models.User{
 		Name:     adminName,
 		Email:    adminEmail,

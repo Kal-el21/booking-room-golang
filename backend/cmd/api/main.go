@@ -95,10 +95,21 @@ func main() {
 
 	// Health check endpoint
 	router.Any("/health", func(c *gin.Context) {
+		db := database.GetDB() // Mengambil instance DB Anda
+		sqlDB, err := db.DB()
+
+		// Cek apakah koneksi database masih hidup
+		if err != nil || sqlDB.Ping() != nil {
+			c.JSON(503, gin.H{
+				"status":   "unhealthy",
+				"database": "disconnected",
+			})
+			return
+		}
 		c.JSON(200, gin.H{
-			"status":  "healthy",
-			"service": cfg.App.Name,
-			"version": "1.0.0",
+			"status":   "healthy",
+			"database": "connected",
+			"service":  cfg.App.Name,
 		})
 	})
 

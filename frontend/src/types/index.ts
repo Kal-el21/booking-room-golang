@@ -8,7 +8,7 @@ export interface User {
   role: UserRole;
   division?: string;
   is_active: boolean;
-  avatar?: string;           // URL path e.g. /uploads/users/filename.jpg
+  avatar?: string;
   email_verified_at?: string;
   created_at: string;
   updated_at: string;
@@ -20,6 +20,7 @@ export interface UserPreferences {
   notification_3h: boolean;
   notification_30m: boolean;
   email_notifications: boolean;
+  otp_login_enabled: boolean; // NEW — user opts in to OTP on every login
 }
 
 export interface LoginRequest {
@@ -68,7 +69,7 @@ export interface Room {
   capacity: number;
   location: string;
   description?: string;
-  image_url?: string;        // URL path e.g. /uploads/rooms/filename.jpg
+  image_url?: string;
   status: 'available' | 'occupied' | 'maintenance';
   is_active: boolean;
   created_by: number;
@@ -104,7 +105,6 @@ export interface RoomRequest {
   updated_at: string;
 }
 
-// Create Request Input
 export interface CreateRequestInput {
   required_capacity: number;
   purpose: string;
@@ -121,14 +121,13 @@ export interface CreateRequestInput {
   recurring_end_date?: string;
 }
 
-// Booking Types
 export interface RoomResponse {
   id: number;
   room_name: string;
   capacity: number;
   location: string;
   description?: string;
-  image_url?: string;        // URL path e.g. /uploads/rooms/filename.jpg
+  image_url?: string;
   status: 'available' | 'occupied' | 'maintenance';
   is_active: boolean;
   created_by: number;
@@ -143,7 +142,7 @@ export interface UserResponse {
   role: UserRole;
   division?: string;
   is_active: boolean;
-  avatar?: string;           // URL path e.g. /uploads/users/filename.jpg
+  avatar?: string;
   email_verified_at?: string;
   created_at: string;
   updated_at?: string;
@@ -166,7 +165,6 @@ export interface Booking {
   updated_at: string;
 }
 
-// Notification Types
 export interface Notification {
   id: number;
   user_id: number;
@@ -182,7 +180,6 @@ export interface Notification {
   created_at: string;
 }
 
-// Pagination
 export interface PaginationMeta {
   current_page: number;
   per_page: number;
@@ -197,7 +194,6 @@ export interface PaginatedResponse<T> {
   meta: PaginationMeta;
 }
 
-// Request Filters
 export type RequestStatusFilter = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export interface RequestFilters {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,10 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { CalendarDays, Loader2, Moon, Sun } from 'lucide-react';
 import type { UserRole } from '@/types';
+import { authService, type RegisterPendingResponse } from '@/services/auth.service';
 
 export const RegisterPage = () => {
-  const { register } = useAuth();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -26,9 +28,30 @@ export const RegisterPage = () => {
     setIsLoading(true);
 
     try {
-      await register(formData);
-    } catch (error) {
-      // Error handled in AuthContext
+      const result = await authService.register(formData);
+
+      // Email verification flow: backend returned a pending state
+      if ('data' in result && (result.data as RegisterPendingResponse).verification_required) {
+        const pending = result.data as RegisterPendingResponse;
+        toast.success('Registrasi berhasil! Silakan cek email Anda.');
+        navigate('/verify-email', {
+          state: {
+            userId: pending.user_id,
+            email: pending.email,
+          },
+        });
+        return;
+      }
+
+      // No email verification required — registration is complete
+      toast.success('Registrasi berhasil! Silakan login.');
+      navigate('/login');
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.error ??
+        err?.response?.data?.message ??
+        'Registrasi gagal, silakan coba lagi';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -42,17 +65,8 @@ export const RegisterPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       {/* Theme Toggle */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={toggleTheme}
-        className="absolute top-4 right-4"
-      >
-        {theme === 'light' ? (
-          <Moon className="h-5 w-5" />
-        ) : (
-          <Sun className="h-5 w-5" />
-        )}
+      <Button variant="ghost" size="icon" onClick={toggleTheme} className="absolute top-4 right-4">
+        {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
       </Button>
 
       <Card className="w-full max-w-md">
@@ -62,16 +76,14 @@ export const RegisterPage = () => {
               <CalendarDays className="h-10 w-10 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription>
-            Sign up for a new Room Booking System account
-          </CardDescription>
+          <CardTitle className="text-2xl font-bold">Buat Akun</CardTitle>
+          <CardDescription>Daftar ke Room Booking System</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name">Nama Lengkap</Label>
               <Input
                 id="name"
                 name="name"
@@ -111,68 +123,36 @@ export const RegisterPage = () => {
                 disabled={isLoading}
                 minLength={6}
               />
-              <p className="text-xs text-muted-foreground">
-                Minimum 6 characters
-              </p>
+              <p className="text-xs text-muted-foreground">Minimal 6 karakter</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="division">Division (Optional)</Label>
+              <Label htmlFor="division">Divisi (Opsional)</Label>
               <Input
                 id="division"
                 name="division"
                 type="text"
-                placeholder="e.g., IT, HR, Finance"
+                placeholder="mis. IT, HR, Finance"
                 value={formData.division}
                 onChange={handleChange}
                 disabled={isLoading}
               />
             </div>
-
-            {/* <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value: UserRole) =>
-                  setFormData((prev) => ({ ...prev, role: value }))
-                }
-                disabled={isLoading}
-              >
-                <SelectTrigger id="role">
-                  <SelectValue placeholder="Select a role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="room_admin">Room Admin</SelectItem>
-                  <SelectItem value="GA">General Admin (GA)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div> */}
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={isLoading}
-            >
+            <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
-                </>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mendaftar...</>
               ) : (
-                'Sign Up'
+                'Daftar'
               )}
             </Button>
 
             <div className="text-sm text-center text-muted-foreground">
-              Already have an account?{' '}
-              <Link
-                to="/login"
-                className="text-primary hover:underline font-medium"
-              >
-                Sign in
+              Sudah punya akun?{' '}
+              <Link to="/login" className="text-primary hover:underline font-medium">
+                Masuk
               </Link>
             </div>
           </CardFooter>

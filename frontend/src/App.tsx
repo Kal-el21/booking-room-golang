@@ -10,6 +10,8 @@ import { DashboardLayout } from './layouts/DashboardLayout';
 // Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
+import { EmailVerificationPage } from './pages/auth/EmailVerificationPage';
+import { OTPLoginPage } from './pages/auth/OtpLoginPage';
 
 // User Pages
 import { UserDashboard } from './pages/user/UserDashboard';
@@ -33,13 +35,12 @@ import { ManageUsersPage } from './pages/admin/ManageUsersPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { SettingsPage } from './pages/SettingsPage';
 
-// Create QueryClient
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
     },
   },
 });
@@ -52,68 +53,71 @@ function App() {
           <AuthProvider>
             <NotificationProvider>
               <Routes>
-              {/* Public Routes */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
+                {/* ── Public / Auth Routes ─────────────────────────── */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
 
-              {/* User Routes */}
-              <Route
-                path="/user/*"
-                element={
-                  <ProtectedRoute allowedRoles={['user']}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="dashboard" element={<UserDashboard />} />
-                <Route path="rooms" element={<RoomsPage />} />
-                <Route path="requests" element={<MyRequestsPage />} />
-                <Route path="requests/new" element={<CreateRequestPage />} />
-                <Route path="bookings" element={<MyBookingsPage />} />
-                <Route path="calendar" element={<CalendarPage />} />
-                <Route path="profile" element={<SettingsPage />} />
-              </Route>
+                {/* OTP verification pages (no auth token required) */}
+                <Route path="/otp-login" element={<OTPLoginPage />} />
+                <Route path="/verify-email" element={<EmailVerificationPage />} />
 
-              {/* GA Routes */}
-              <Route
-                path="/ga/*"
-                element={
-                  <ProtectedRoute allowedRoles={['GA']}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="dashboard" element={<GADashboard />} />
-                <Route path="requests" element={<PendingRequestsPage />} />
-                <Route path="bookings" element={<AllBookingsPage />} />
-                <Route path="users" element={<GAUsersPage />} />
-                <Route path="calendar" element={<CalendarPage />} />
-                <Route path="profile" element={<SettingsPage />} />
-              </Route>
+                {/* ── User Routes ───────────────────────────────────── */}
+                <Route
+                  path="/user/*"
+                  element={
+                    <ProtectedRoute allowedRoles={['user']}>
+                      <DashboardLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="dashboard" element={<UserDashboard />} />
+                  <Route path="rooms" element={<RoomsPage />} />
+                  <Route path="requests" element={<MyRequestsPage />} />
+                  <Route path="requests/new" element={<CreateRequestPage />} />
+                  <Route path="bookings" element={<MyBookingsPage />} />
+                  <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="profile" element={<SettingsPage />} />
+                </Route>
 
-              {/* Room Admin Routes */}
-              <Route
-                path="/admin/*"
-                element={
-                  <ProtectedRoute allowedRoles={['room_admin']}>
-                    <DashboardLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="dashboard" element={<AdminDashboard />} />
-                <Route path="rooms" element={<ManageRoomsPage />} />
-                <Route path="users" element={<ManageUsersPage />} />
-                <Route path="calendar" element={<CalendarPage />} />
-                <Route path="profile" element={<SettingsPage />} />
-              </Route>
+                {/* ── GA Routes ─────────────────────────────────────── */}
+                <Route
+                  path="/ga/*"
+                  element={
+                    <ProtectedRoute allowedRoles={['GA']}>
+                      <DashboardLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="dashboard" element={<GADashboard />} />
+                  <Route path="requests" element={<PendingRequestsPage />} />
+                  <Route path="bookings" element={<AllBookingsPage />} />
+                  <Route path="users" element={<GAUsersPage />} />
+                  <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="profile" element={<SettingsPage />} />
+                </Route>
 
-              {/* Default Redirect */}
-              <Route path="/" element={<Navigate to="/login" replace />} />
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
+                {/* ── Room Admin Routes ─────────────────────────────── */}
+                <Route
+                  path="/admin/*"
+                  element={
+                    <ProtectedRoute allowedRoles={['room_admin']}>
+                      <DashboardLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="dashboard" element={<AdminDashboard />} />
+                  <Route path="rooms" element={<ManageRoomsPage />} />
+                  <Route path="users" element={<ManageUsersPage />} />
+                  <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="profile" element={<SettingsPage />} />
+                </Route>
 
-            {/* Toast Notifications */}
-            <Toaster position="top-right" richColors closeButton />
+                {/* ── Fallback ──────────────────────────────────────── */}
+                <Route path="/" element={<Navigate to="/login" replace />} />
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+
+              <Toaster position="top-right" richColors closeButton />
             </NotificationProvider>
           </AuthProvider>
         </ThemeProvider>

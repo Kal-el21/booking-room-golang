@@ -1,199 +1,114 @@
-# Room Booking System
+# 🚪 Room Booking & Management System
 
-A full-stack room booking application built with Go (Golang) backend and React frontend.
+A professional, full-stack room booking application with automated approval workflows, real-time notifications, and multi-factor authentication.
 
-## Tech Stack
+## 🚀 Key Features
 
-- **Backend:** Go with Gin framework, GORM ORM, PostgreSQL
-- **Frontend:** React with TypeScript, TailwindCSS
-- **Database:** PostgreSQL
-- **Authentication:** JWT with bcrypt password hashing
-- **Docker:** Docker & Docker Compose
+- **🔐 Advanced Authentication:**
+  - Classic JWT-based login & registration.
+  - **Email Verification** via OTP for new accounts.
+  - **Two-Factor Authentication (OTP)** login option.
+  - Secure Refresh Token mechanism.
+- **🏢 Smart Room Management:**
+  - CRUD operations for rooms with image uploads.
+  - Automated availability checking for time slots.
+  - Multi-day and **Weekly Recurring** booking support.
+- **✅ Workflow Automation:**
+  - **User:** Submit requests for room usage.
+  - **GA (General Affairs):** Review, approve (assigning rooms), or reject requests.
+  - **Automated Completion:** System automatically marks past bookings as completed.
+- **🔔 Real-time Experience:**
+  - **SSE (Server-Sent Events):** Real-time in-app notifications for status updates.
+  - **Email Notifications:** Automatic alerts for request approvals/rejections.
+  - **Interactive Calendar:** Visualized view of all bookings and pending requests.
+- **🛠️ Admin Control:**
+  - Global system settings (Enable/Disable registration, OTP, etc.).
+  - User management (Profile updates, password resets, role management).
+  - Avatar uploads for all users.
 
-## Project Structure
+## 🛠️ Tech Stack
 
-```
+- **Backend:** [Go (Golang)](https://go.dev/) with [Gin](https://gin-gonic.com/), [GORM](https://gorm.io/), and PostgreSQL.
+- **Frontend:** [React](https://reactjs.org/) with TypeScript, [Vite](https://vitejs.dev/), and [TailwindCSS](https://tailwindcss.com/).
+- **Real-time:** Server-Sent Events (SSE).
+- **Storage:** Local filesystem for avatars and room images.
+- **Deployment:** Docker & Docker Compose.
+
+## 📂 Project Structure
+
+```text
 booking-room-golang/
-├── backend/           # Go backend application
-│   ├── cmd/          # Command entry points
-│   ├── internal/     # Internal packages
-│   │   ├── config/   # Configuration
-│   │   ├── database/ # Database connection
-│   │   ├── handlers/ # HTTP handlers
-│   │   ├── middleware/ # Auth middleware
-│   │   ├── models/   # Data models
-│   │   ├── repositories/ # Data access
-│   │   ├── routes/   # API routes
-│   │   ├── services/ # Business logic
-│   │   └── utils/    # Utility functions
-│   └── MAKEFILE      # Backend Makefile
-├── frontend/         # React frontend application
-├── docker-compose.yml
+├── backend/                # Go backend application
+│   ├── cmd/                # Entry points (API & Seeder)
+│   ├── internal/
+│   │   ├── docs/           # 💡 Internal API & Workflow Docs
+│   │   ├── handlers/       # HTTP controllers
+│   │   ├── middleware/     # JWT & Role RBAC
+│   │   ├── models/         # GORM schemas
+│   │   ├── services/       # Business logic & SSE Manager
+│   │   └── uploads/        # Static files (avatars, rooms)
+│   └── MAKEFILE            # Utility commands
+├── frontend/               # React frontend application
+│   ├── src/
+│   │   ├── components/     # UI & Common components
+│   │   ├── context/        # Auth & Notification states
+│   │   ├── hooks/          # API integration hooks
+│   │   └── services/       # Axios & SSE service layers
+├── docker-compose.yml      # Fullstack orchestration
 └── README.md
 ```
 
-## Getting Started
+## 🚦 Getting Started
 
 ### Prerequisites
-
-- Go 1.25+
 - Docker & Docker Compose
-- PostgreSQL (if running locally without Docker)
+- Node.js & Go (for local development only)
 
-### Environment Setup
+### 1. Environment Configuration
 
-1. **Copy environment file:**
+1. **Root Directory:**
+   ```bash
+   cp .env.example .env
+   ```
+2. **Backend Directory:**
    ```bash
    cp backend/.env.example backend/.env
    ```
+   *Edit `backend/.env` with your SMTP credentials for Email/OTP features to work.*
 
-2. **Configure database and other settings in `backend/.env`:**
+### 2. Running with Docker (Recommended)
 
-### Running with Docker
-
-1. **Start all services:**
-   ```bash
-   docker compose up -d
-   ```
-   *Note: This will automatically run database migrations and seed the admin user.*
-
-2. **View logs:**
-   ```bash
-   docker compose logs -f
-   ```
-
-3. **Stop services:**
-   ```bash
-   docker compose down
-   ```
-
-4. **Rebuild containers:**
-   ```bash
-   docker compose up -d --build
-   ```
-
-### Running Locally (Without Docker)
-
-1. **Start PostgreSQL:**
-   ```bash
-   # Make sure PostgreSQL is running
-   # Create database: room_booking_db
-   ```
-
-2. **Run backend:**
-   ```bash
-   cd backend
-   make run
-   ```
-
-3. **Run frontend:**
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-## Admin User Setup
-
-### Automated Admin Seeding (Recommended)
-
-When you run `docker compose up -d`, the system will automatically run the admin seeding process to ensure an admin user exists in the database.
-
-### Create Admin User Manually
-
-#### Using Docker (Manual)
+Start the entire system (Database, Backend, Frontend):
 ```bash
-docker compose exec backend ./seed_admin
+docker compose up -d --build
 ```
+*The system will automatically run migrations and seed the initial admin user.*
 
-#### Using Makefile (Local)
-```bash
-cd backend
-make seed-admin
-```
+### 3. Local Development
 
-#### Using Go Directly
-```bash
-cd backend
-go run cmd/seed_admin/main.go
-```
+- **Backend:** `cd backend && make dev` (requires [air](https://github.com/cosmtrek/air))
+- **Frontend:** `cd frontend && npm install && npm run dev`
 
-### Admin Credentials
+## 🔑 Default Admin Credentials
 
-| Field | Value |
-|-------|-------|
-| Email | admin@indore.co.id |
-| Division | IT |
-| Password | rJsm8kFce4 |
-| Role | room_admin |
+If the auto-seeder runs, you can log in with:
+- **Email:** `admin@indore.co.id`
+- **Password:** `rJsm8kFce4`
+- **Role:** `room_admin`
 
-## API Endpoints
+## 📖 Documentation
 
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-- `POST /api/auth/logout` - Logout user
-- `GET /api/auth/me` - Get current user
+For detailed API usage and system internals, please refer to:
+- [**API Testing Guide (Postman)**](./backend/internal/docs/apitest.md) - Complete list of endpoints and test flows.
+- [**Backend Workflow**](./backend/internal/docs/backend-workflow.md) - Deep dive into architecture and logic.
 
-### Users (Admin)
-- `GET /api/users` - List all users
-- `GET /api/users/:id` - Get user by ID
-- `PUT /api/users/:id` - Update user
-- `DELETE /api/users/:id` - Delete user
-
-### Rooms (Admin)
-- `GET /api/rooms` - List all rooms
-- `POST /api/rooms` - Create room
-- `GET /api/rooms/:id` - Get room by ID
-- `PUT /api/rooms/:id` - Update room
-- `DELETE /api/rooms/:id` - Delete room
-
-### Bookings
-- `POST /api/bookings` - Create booking
-- `GET /api/bookings` - List user bookings
-- `GET /api/bookings/:id` - Get booking by ID
-- `DELETE /api/bookings/:id` - Cancel booking
-
-### Requests (GA Approval)
-- `POST /api/requests` - Create booking request
-- `GET /api/requests` - List requests (filtered by role)
-- `PUT /api/requests/:id/approve` - Approve request (GA)
-- `PUT /api/requests/:id/reject` - Reject request (GA)
-
-## User Roles
+## 👥 User Roles
 
 | Role | Description |
 |------|-------------|
-| `user` | Regular user - can view rooms, create requests |
-| `room_admin` | Admin - can manage rooms |
-| `GA` | General Affairs - can approve/reject requests |
+| `user` | Can view rooms, create booking requests, and manage their profile. |
+| `GA` | General Affairs - reviews and approves/rejects booking requests. |
+| `room_admin` | Full system control - manages rooms, users, and global settings. |
 
-## Available Make Commands
-
-### Backend
-```bash
-cd backend
-
-make help              # Show help
-make install           # Install dependencies
-make build             # Build application
-make run               # Run application
-make dev               # Run with hot reload (air)
-make clean             # Clean build files
-make test              # Run tests
-make seed-admin        # Create admin user (local)
-make docker-seed-admin # Create admin user (Docker)
-make docker-rebuild-seed # Rebuild and seed
-make docker-up         # Start Docker containers
-make docker-down       # Stop Docker containers
-make docker-logs       # View Docker logs
-make docker-rebuild    # Rebuild Docker containers
-```
-
-## Database Migrations
-
-Migrations are run automatically on application startup using GORM's AutoMigrate feature.
-
-## License
-
-MIT
+## 📄 License
+This project is licensed under the MIT License.

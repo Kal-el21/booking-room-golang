@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import type { User, LoginRequest, RegisterRequest } from '@/types';
-import { authService } from '@/services/auth.service';
+import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@/types';
+import { authService, type LoginOTPPendingResponse, type RegisterPendingResponse } from '@/services/auth.service';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -11,7 +11,7 @@ interface AuthContextType {
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<User | null>; // ← now returns User so callers can navigate
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,7 +38,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setUser(currentUser);
         } catch {
           // Token invalid, clear everything
-          localStorage.clear();
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
           setUser(null);
         }
       }
@@ -51,12 +53,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async (data: LoginRequest) => {
     try {
       const response = await authService.login(data);
-      setUser(response.data.user);
+      
+      // Check if OTP is required
+      if ('otp_required' in response.data) {
+        const otpData = response.data as LoginOTPPendingResponse;
+        navigate('/login-otp', { 
+          state: { 
+            userId: otpData.user_id,
+            email: otpData.email,
+            rememberMe: otpData.remember_me
+          } 
+        });
+        return;
+      }
+
+      // Classic flow
+      const authResponse = response as AuthResponse;
+      setUser(authResponse.data.user);
       
       toast.success('Login successful!');
       
       // Redirect based on role
-      switch (response.data.user.role) {
+      switch (authResponse.data.user.role) {
         case 'user':
           navigate('/user/dashboard');
           break;
@@ -77,7 +95,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const register = async (data: RegisterRequest) => {
     try {
-      await authService.register(data);
+      const response = await authService.register(data);
+      
+      // Check if email verification is required
+      if ('verification_required' in response.data) {
+        const pendingData = response.data as RegisterPendingResponse;
+        toast.success('Registration successful! Please verify your email.');
+        navigate('/verify-email', { 
+          state: { 
+            userId: pendingData.user_id,
+            email: pendingData.email 
+          } 
+        });
+        return;
+      }
+
       toast.success('Registration successful! Please login.');
       navigate('/login');
     } catch (error: any) {
@@ -97,12 +129,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     navigate('/login');
   };
 
-  const refreshUser = async () => {
+  /**
+   * Fetches the latest user from the API, updates state, and returns the user
+   * so the caller can immediately navigate based on role without waiting for a
+   * re-render cycle.
+   */
+  const refreshUser = async (): Promise<User | null> => {
     try {
       const currentUser = await authService.getCurrentUser();
       setUser(currentUser);
+      return currentUser;
     } catch (error) {
       console.error('Failed to refresh user:', error);
+      return null;
     }
   };
 
