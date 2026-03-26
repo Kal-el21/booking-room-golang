@@ -27,7 +27,7 @@ func main() {
 	// Admin user data
 	adminEmail := "admin@indore.co.id"
 	adminDivision := "IT"
-	adminPassword := "rJsm8kFce4"
+	adminPassword := "admin123"
 	adminName := "Admin Indore"
 
 	// Hash password
