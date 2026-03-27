@@ -33,7 +33,7 @@ export const RegisterPage = () => {
       // Email verification flow: backend returned a pending state
       if ('data' in result && (result.data as RegisterPendingResponse).verification_required) {
         const pending = result.data as RegisterPendingResponse;
-        toast.success('Registrasi berhasil! Silakan cek email Anda.');
+        toast.success('Registration successful! Please check your email.');
         navigate('/verify-email', {
           state: {
             userId: pending.user_id,
@@ -44,13 +44,13 @@ export const RegisterPage = () => {
       }
 
       // No email verification required — registration is complete
-      toast.success('Registrasi berhasil! Silakan login.');
+      toast.success('Registration successful! Please sign in.');
       navigate('/login');
     } catch (err: any) {
       const message =
         err?.response?.data?.error ??
         err?.response?.data?.message ??
-        'Registrasi gagal, silakan coba lagi';
+        'Registration failed, please try again';
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -76,14 +76,14 @@ export const RegisterPage = () => {
               <CalendarDays className="h-10 w-10 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Buat Akun</CardTitle>
-          <CardDescription>Daftar ke Room Booking System</CardDescription>
+          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
+          <CardDescription>Register to Room Booking System</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="name">Nama Lengkap</Label>
+              <Label htmlFor="name">Full Name</Label>
               <Input
                 id="name"
                 name="name"
@@ -123,16 +123,16 @@ export const RegisterPage = () => {
                 disabled={isLoading}
                 minLength={6}
               />
-              <p className="text-xs text-muted-foreground">Minimal 6 karakter</p>
+              <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="division">Divisi (Opsional)</Label>
+              <Label htmlFor="division">Division (Optional)</Label>
               <Input
                 id="division"
                 name="division"
                 type="text"
-                placeholder="mis. IT, HR, Finance"
+                placeholder="e.g. IT, HR, Finance"
                 value={formData.division}
                 onChange={handleChange}
                 disabled={isLoading}
@@ -141,18 +141,18 @@ export const RegisterPage = () => {
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full mt-4" disabled={isLoading}>
               {isLoading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mendaftar...</>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Registering...</>
               ) : (
-                'Daftar'
+                'Register'
               )}
             </Button>
 
             <div className="text-sm text-center text-muted-foreground">
-              Sudah punya akun?{' '}
+              Already have an account?{' '}
               <Link to="/login" className="text-primary hover:underline font-medium">
-                Masuk
+                Sign In
               </Link>
             </div>
           </CardFooter>

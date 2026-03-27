@@ -60,13 +60,13 @@ export const LoginPage = () => {
 
       // Classic flow: tokens already saved by authService.login
       await refreshUser();
-      toast.success('Login berhasil!');
+      toast.success('Login successful!');
       // Redirect handled by AuthContext / useEffect above
     } catch (err: any) {
       const message =
         err?.response?.data?.error ??
         err?.response?.data?.message ??
-        'Email atau password salah';
+        'Incorrect email or password';
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -92,8 +92,8 @@ export const LoginPage = () => {
               <CalendarDays className="h-10 w-10 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Selamat Datang</CardTitle>
-          <CardDescription>Masuk ke Room Booking System</CardDescription>
+          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+          <CardDescription>Sign in to Room Booking System</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
@@ -136,24 +136,24 @@ export const LoginPage = () => {
                 disabled={isLoading}
               />
               <Label htmlFor="remember_me" className="text-sm cursor-pointer">
-                Ingat saya selama 7 hari
+                Remember me for 7 days
               </Label>
             </div>
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full mt-4" disabled={isLoading}>
               {isLoading ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Masuk...</>
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Signing in...</>
               ) : (
-                'Masuk'
+                'Sign In'
               )}
             </Button>
 
             <div className="text-sm text-center text-muted-foreground">
-              Belum punya akun?{' '}
+              Don't have an account?{' '}
               <Link to="/register" className="text-primary hover:underline font-medium">
-                Daftar
+                Register
               </Link>
             </div>
           </CardFooter>

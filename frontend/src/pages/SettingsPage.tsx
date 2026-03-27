@@ -89,11 +89,11 @@ export const SettingsPage = () => {
 
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!allowed.includes(file.type)) {
-      toast.error('Tipe file tidak valid. Hanya JPG, PNG, dan WebP yang diizinkan.');
+      toast.error('Invalid file type. Only JPG, PNG, and WebP are allowed.');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('File terlalu besar. Ukuran maksimal 5MB.');
+      toast.error('File is too large. Maximum size is 5MB.');
       return;
     }
 
@@ -142,7 +142,7 @@ export const SettingsPage = () => {
   const onUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordData.new_password !== passwordData.confirm_password) {
-      toast.error('Password baru tidak cocok');
+      toast.error('New passwords do not match');
       return;
     }
     try {
@@ -174,34 +174,34 @@ export const SettingsPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Pengaturan</h2>
-        <p className="text-muted-foreground">Kelola pengaturan akun dan preferensi Anda</p>
+        <h2 className="text-2xl font-bold">Settings</h2>
+        <p className="text-muted-foreground">Manage your account settings and preferences</p>
       </div>
 
       <Tabs defaultValue="profile" className="space-y-4">
         <TabsList className={`grid w-full ${tabGridCols}`}>
           <TabsTrigger value="profile" className="flex items-center justify-center gap-1.5 px-2">
             <User className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline truncate">Profil</span>
+            <span className="hidden sm:inline truncate">Profile</span>
           </TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center justify-center gap-1.5 px-2">
             <Bell className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline truncate">Notifikasi</span>
+            <span className="hidden sm:inline truncate">Notifications</span>
           </TabsTrigger>
           <TabsTrigger value="security" className="flex items-center justify-center gap-1.5 px-2">
             <Lock className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline truncate">Keamanan</span>
+            <span className="hidden sm:inline truncate">Security</span>
           </TabsTrigger>
           <TabsTrigger value="appearance" className="flex items-center justify-center gap-1.5 px-2">
             <Palette className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline truncate">Tampilan</span>
+            <span className="hidden sm:inline truncate">Appearance</span>
           </TabsTrigger>
 
           {/* ── Admin-only tab ── */}
           {isAdmin && (
             <TabsTrigger value="system" className="flex items-center justify-center gap-1.5 px-2">
               <Settings2 className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline truncate">Sistem</span>
+              <span className="hidden sm:inline truncate">System</span>
             </TabsTrigger>
           )}
         </TabsList>
@@ -211,8 +211,8 @@ export const SettingsPage = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Informasi Profil</CardTitle>
-                <CardDescription>Perbarui nama, divisi, dan foto profil Anda</CardDescription>
+                <CardTitle>Profile Information</CardTitle>
+                <CardDescription>Update your name, division, and profile photo</CardDescription>
               </div>
               {!isEditingProfile && !avatarFile && (
                 <Button
@@ -224,7 +224,7 @@ export const SettingsPage = () => {
                   }}
                 >
                   <Edit2 className="h-4 w-4 mr-2" />
-                  Edit Profil
+                  Edit Profile
                 </Button>
               )}
             </CardHeader>
@@ -243,10 +243,10 @@ export const SettingsPage = () => {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Ganti foto"
+                    title="Change photo"
                   >
                     <Camera className="h-6 w-6 text-white" />
-                    <span className="text-white text-[10px] mt-1 font-medium">Ganti</span>
+                    <span className="text-white text-[10px] mt-1 font-medium">Change</span>
                   </button>
 
                   <input
@@ -265,11 +265,11 @@ export const SettingsPage = () => {
                     {user.division && <Badge variant="secondary">{user.division}</Badge>}
                   </div>
                   <p className="text-xs text-muted-foreground pt-1">
-                    Arahkan kursor ke foto untuk mengganti · JPG, PNG, WebP · Maks 5MB
+                    Hover over the photo to change it · JPG, PNG, WebP · Max 5MB
                   </p>
                   {avatarFile && (
                     <p className="text-xs text-primary font-medium">
-                      ✓ Foto baru dipilih — klik Simpan Perubahan untuk menerapkan
+                      ✓ New photo selected — click Save Changes to apply
                     </p>
                   )}
                 </div>
@@ -278,7 +278,7 @@ export const SettingsPage = () => {
               <form onSubmit={onUpdateProfile} className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Nama Lengkap</Label>
+                    <Label htmlFor="name">Full Name</Label>
                     <Input
                       id="name"
                       value={isEditingProfile ? profileData.name : user.name}
@@ -289,16 +289,16 @@ export const SettingsPage = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Alamat Email</Label>
+                    <Label>Email Address</Label>
                     <Input value={user.email} readOnly className="bg-muted opacity-70" />
-                    <p className="text-[10px] text-muted-foreground italic">* Email tidak dapat diubah</p>
+                    <p className="text-[10px] text-muted-foreground italic">* Email cannot be changed</p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="division">Divisi</Label>
+                    <Label htmlFor="division">Division</Label>
                     <Input
                       id="division"
-                      value={isEditingProfile ? profileData.division : (user.division || 'Belum ditentukan')}
+                      value={isEditingProfile ? profileData.division : (user.division || 'Not set')}
                       onChange={(e) => setProfileData((prev) => ({ ...prev, division: e.target.value }))}
                       readOnly={!isEditingProfile}
                       className={!isEditingProfile ? 'bg-muted' : ''}
@@ -306,9 +306,9 @@ export const SettingsPage = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Akun Dibuat</Label>
+                    <Label>Account Created</Label>
                     <Input
-                      value={new Date(user.created_at).toLocaleDateString('id-ID', {
+                      value={new Date(user.created_at).toLocaleDateString('en-US', {
                         day: 'numeric', month: 'long', year: 'numeric',
                       })}
                       readOnly
@@ -320,11 +320,11 @@ export const SettingsPage = () => {
                 {(isEditingProfile || avatarFile) && (
                   <div className="flex justify-end gap-2 pt-2">
                     <Button type="button" variant="ghost" onClick={handleCancelEdit} disabled={updateProfile.isPending}>
-                      Batal
+                      Cancel
                     </Button>
                     <Button type="submit" disabled={updateProfile.isPending}>
                       {updateProfile.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      Simpan Perubahan
+                      Save Changes
                     </Button>
                   </div>
                 )}
@@ -337,18 +337,18 @@ export const SettingsPage = () => {
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
-              <CardTitle>Preferensi Notifikasi</CardTitle>
-              <CardDescription>Pilih kapan dan bagaimana Anda ingin diberitahu</CardDescription>
+              <CardTitle>Notification Preferences</CardTitle>
+              <CardDescription>Choose when and how you want to be notified</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                  Pengingat Rapat
+                  Meeting Reminders
                 </h4>
                 {[
-                  { key: 'notification_24h' as const, label: '24 Jam Sebelumnya', desc: 'Terima pengingat 1 hari sebelum rapat' },
-                  { key: 'notification_3h'  as const, label: '3 Jam Sebelumnya',  desc: 'Terima pengingat 3 jam sebelum rapat' },
-                  { key: 'notification_30m' as const, label: '30 Menit Sebelumnya', desc: 'Terima pengingat terakhir 30 menit sebelum rapat' },
+                  { key: 'notification_24h' as const, label: '24 Hours Before', desc: 'Receive a reminder 1 day before the meeting' },
+                  { key: 'notification_3h'  as const, label: '3 Hours Before',  desc: 'Receive a reminder 3 hours before the meeting' },
+                  { key: 'notification_30m' as const, label: '30 Minutes Before', desc: 'Receive a final reminder 30 minutes before the meeting' },
                 ].map(({ key, label, desc }, i) => (
                   <div key={key} className={`flex items-center justify-between ${i > 0 ? 'border-t pt-4' : ''}`}>
                     <div className="space-y-0.5">
@@ -365,13 +365,13 @@ export const SettingsPage = () => {
 
               <div className="space-y-4 border-t pt-6">
                 <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                  Saluran Komunikasi
+                  Communication Channels
                 </h4>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Notifikasi Email</Label>
+                    <Label>Email Notifications</Label>
                     <p className="text-sm text-muted-foreground">
-                      Terima pembaruan permintaan dan pengingat melalui email
+                      Receive request updates and reminders via email
                     </p>
                   </div>
                   <Switch
@@ -387,7 +387,7 @@ export const SettingsPage = () => {
                     ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     : <Save className="h-4 w-4 mr-2" />
                   }
-                  Simpan Preferensi
+                  Save Preferences
                 </Button>
               </div>
             </CardContent>
@@ -402,20 +402,20 @@ export const SettingsPage = () => {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-5 w-5 text-primary" />
-                  <CardTitle>Login Dua Langkah (OTP)</CardTitle>
+                  <CardTitle>Two-Step Login (OTP)</CardTitle>
                 </div>
                 <CardDescription>
-                  Tambahkan lapisan keamanan ekstra. Kode OTP dikirim ke email Anda setiap kali login.
+                  Add an extra layer of security. An OTP code is sent to your email every time you log in.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div className="space-y-1">
-                    <p className="font-medium text-sm">Login dengan OTP Email</p>
+                    <p className="font-medium text-sm">Login with Email OTP</p>
                     <p className="text-sm text-muted-foreground">
                       {prefs.otp_login_enabled
-                        ? '🔒 Aktif — kode OTP dikirim ke email setiap login'
-                        : '🔓 Nonaktif — login langsung dengan email & password'}
+                        ? '🔒 Active — an OTP code is sent to your email on every login'
+                        : '🔓 Inactive — log in directly with email & password'}
                     </p>
                   </div>
                   <Switch
@@ -427,8 +427,8 @@ export const SettingsPage = () => {
                 {prefs.otp_login_enabled && (
                   <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3">
                     <p className="text-xs text-amber-800 dark:text-amber-300">
-                      ⚠️ Pastikan Anda memiliki akses ke email <strong>{user.email}</strong> agar
-                      dapat menerima kode OTP setiap kali login.
+                      ⚠️ Make sure you have access to the email <strong>{user.email}</strong> to
+                      receive the OTP code every time you log in.
                     </p>
                   </div>
                 )}
@@ -443,7 +443,7 @@ export const SettingsPage = () => {
                       ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       : <Save className="h-4 w-4 mr-2" />
                     }
-                    Simpan Pengaturan Keamanan
+                    Save Security Settings
                   </Button>
                 </div>
               </CardContent>
@@ -452,23 +452,23 @@ export const SettingsPage = () => {
             {/* Change Password Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Ubah Password</CardTitle>
-                <CardDescription>Perbarui password Anda untuk menjaga keamanan akun</CardDescription>
+                <CardTitle>Change Password</CardTitle>
+                <CardDescription>Update your password to keep your account secure</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={onUpdatePassword} className="space-y-4 max-w-md">
                   <div className="space-y-2">
-                    <Label htmlFor="current_password">Password Saat Ini</Label>
+                    <Label htmlFor="current_password">Current Password</Label>
                     <Input id="current_password" name="current_password" type="password"
                       value={passwordData.current_password} onChange={handlePasswordChange} required />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="new_password">Password Baru</Label>
+                    <Label htmlFor="new_password">New Password</Label>
                     <Input id="new_password" name="new_password" type="password"
                       value={passwordData.new_password} onChange={handlePasswordChange} required minLength={6} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="confirm_password">Konfirmasi Password Baru</Label>
+                    <Label htmlFor="confirm_password">Confirm New Password</Label>
                     <Input id="confirm_password" name="confirm_password" type="password"
                       value={passwordData.confirm_password} onChange={handlePasswordChange} required />
                   </div>
@@ -477,7 +477,7 @@ export const SettingsPage = () => {
                       ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       : <Lock className="h-4 w-4 mr-2" />
                     }
-                    Perbarui Password
+                    Update Password
                   </Button>
                 </form>
               </CardContent>
@@ -489,27 +489,27 @@ export const SettingsPage = () => {
         <TabsContent value="appearance">
           <Card>
             <CardHeader>
-              <CardTitle>Pengaturan Tampilan</CardTitle>
-              <CardDescription>Sesuaikan tampilan aplikasi untuk Anda</CardDescription>
+              <CardTitle>Appearance Settings</CardTitle>
+              <CardDescription>Customize the look of the application for you</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
-                <Label>Mode Tema</Label>
+                <Label>Theme Mode</Label>
                 <div className="grid grid-cols-3 gap-4 max-w-md">
                   <Button variant={theme === 'light' ? 'default' : 'outline'}
                     className="flex flex-col h-auto py-4 gap-2" onClick={() => setTheme('light')}>
-                    <Sun className="h-6 w-6" /><span>Terang</span>
+                    <Sun className="h-6 w-6" /><span>Light</span>
                   </Button>
                   <Button variant={theme === 'dark' ? 'default' : 'outline'}
                     className="flex flex-col h-auto py-4 gap-2" onClick={() => setTheme('dark')}>
-                    <Moon className="h-6 w-6" /><span>Gelap</span>
+                    <Moon className="h-6 w-6" /><span>Dark</span>
                   </Button>
                   <Button variant="outline" className="flex flex-col h-auto py-4 gap-2 opacity-50" disabled>
-                    <Monitor className="h-6 w-6" /><span>Sistem</span>
+                    <Monitor className="h-6 w-6" /><span>System</span>
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  * Tema sistem secara otomatis menyesuaikan pengaturan perangkat Anda
+                  * System theme automatically follows your device settings
                 </p>
               </div>
             </CardContent>
@@ -523,10 +523,10 @@ export const SettingsPage = () => {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Settings2 className="h-5 w-5 text-primary" />
-                  <CardTitle>Pengaturan Sistem</CardTitle>
+                  <CardTitle>System Settings</CardTitle>
                 </div>
                 <CardDescription>
-                  Konfigurasi sistem yang berlaku untuk semua pengguna. Hanya Admin yang dapat mengubah ini.
+                  System-wide configuration that applies to all users. Only Admins can change these settings.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -540,14 +540,14 @@ export const SettingsPage = () => {
                     {/* Email Verification Toggle */}
                     <div className="space-y-4">
                       <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                        Registrasi
+                        Registration
                       </h4>
                       <div className="flex items-center justify-between rounded-lg border p-4">
                         <div className="space-y-1">
-                          <p className="font-medium text-sm">Verifikasi Email saat Registrasi</p>
+                          <p className="font-medium text-sm">Email Verification on Registration</p>
                           <p className="text-sm text-muted-foreground">
-                            Jika aktif, pengguna baru harus memverifikasi email mereka dengan
-                            kode OTP sebelum akun aktif dan bisa digunakan untuk login.
+                            When enabled, new users must verify their email with an
+                            OTP code before the account is active and can be used to log in.
                           </p>
                         </div>
                         <Switch
@@ -561,8 +561,8 @@ export const SettingsPage = () => {
                       {sysPrefs.email_verification_enabled && (
                         <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3">
                           <p className="text-xs text-blue-800 dark:text-blue-300">
-                            ℹ️ Pastikan konfigurasi SMTP sudah benar di server agar email OTP dapat terkirim.
-                            Cek variabel <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">SMTP_*</code> di file <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">.env</code>.
+                          ℹ️ Make sure the SMTP configuration is correctly set on the server so OTP emails can be delivered.
+                            Check the <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">SMTP_*</code> variables in your <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">.env</code> file.
                           </p>
                         </div>
                       )}
@@ -577,7 +577,7 @@ export const SettingsPage = () => {
                           ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           : <Save className="h-4 w-4 mr-2" />
                         }
-                        Simpan Pengaturan Sistem
+                        Save System Settings
                       </Button>
                     </div>
                   </>
