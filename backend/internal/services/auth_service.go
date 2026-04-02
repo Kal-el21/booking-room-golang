@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/config"
@@ -24,12 +25,15 @@ func NewAuthService(userRepo *repositories.UserRepository) *AuthService {
 
 // ── Input / Response types ────────────────────────────────────────────────────
 
+// RegisterInput is kept for the seed-admin CLI only.
+// The public /register endpoint is disabled in LDAP mode.
 type RegisterInput struct {
 	Name     string          `json:"name" binding:"required,min=2"`
 	Email    string          `json:"email" binding:"required,email"`
 	Password string          `json:"password" binding:"required,min=6"`
 	Role     models.UserRole `json:"role"`
 	Division *string         `json:"division"`
+	AuthType models.AuthType `json:"auth_type"` // defaults to "local" if empty
 }
 
 type LoginInput struct {
@@ -46,13 +50,11 @@ type LoginResponse struct {
 	ExpiresIn    int                 `json:"expires_in"` // seconds
 }
 
-// ── Register ─────────────────────────────────────────────────────────────────
+// ── Register (used by seed-admin CLI only) ────────────────────────────────────
 
 // Register creates a new user account.
-//
-// When ENABLE_EMAIL_VERIFICATION=true the account is set inactive (IsActive=false)
-// so the user cannot log in until they verify their email. The caller (handler)
-// is responsible for triggering the OTP email after this returns.
+// In normal operations this is called only by the seed-admin CLI to create the
+// first local admin. The HTTP handler for /register returns 410 Gone.
 func (s *AuthService) Register(input RegisterInput) (*models.User, error) {
 	// Check email uniqueness
 	existingUser, err := s.userRepo.FindByEmail(input.Email)
@@ -60,38 +62,41 @@ func (s *AuthService) Register(input RegisterInput) (*models.User, error) {
 		return nil, errors.New("email sudah terdaftar")
 	}
 
-	// Hash password
-	hashedPassword, err := utils.HashPassword(input.Password)
-	if err != nil {
-		return nil, err
+	authType := input.AuthType
+	if authType == "" {
+		authType = models.AuthTypeLocal
 	}
 
-	// Default role
+	var hashedPassword string
+	if authType == models.AuthTypeLocal {
+		if input.Password == "" {
+			return nil, errors.New("password wajib diisi untuk akun lokal")
+		}
+		hashedPassword, err = utils.HashPassword(input.Password)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	role := input.Role
 	if role == "" {
 		role = models.RoleUser
-	}
-
-	// When email verification is required the account starts as inactive
-	isActive := true
-	if config.App.Feature.EnableEmailVerification {
-		isActive = false
 	}
 
 	user := &models.User{
 		Name:     input.Name,
 		Email:    input.Email,
 		Password: hashedPassword,
+		AuthType: authType,
 		Role:     role,
 		Division: input.Division,
-		IsActive: isActive,
+		IsActive: true,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
 		return nil, err
 	}
 
-	// Create default notification preferences
 	if _, err := s.userRepo.GetOrCreatePreferences(user.ID); err != nil {
 		return nil, err
 	}
@@ -101,36 +106,111 @@ func (s *AuthService) Register(input RegisterInput) (*models.User, error) {
 
 // ── Credentials & session helpers ────────────────────────────────────────────
 
-// ValidateCredentials checks that the email exists, the account is active, and
-// the password is correct. Returns the User on success, an error otherwise.
-// Used by both the classic Login path and the OTP-login first step.
+// ValidateCredentials authenticates a user.
+//
+// Routing logic:
+//  1. If user exists in DB with AuthType == "local"  → bcrypt check.
+//  2. If user exists in DB with AuthType == "ldap"   → Active Directory check.
+//  3. If user does NOT exist in DB yet               → try LDAP; on success
+//     auto-create the account with role "user".
+//
+// The email field in LoginInput is used as the sAMAccountName / username sent
+// to LDAP when the value contains no "@". When it does contain "@" only the
+// local part (before "@") is extracted for the LDAP search.
 func (s *AuthService) ValidateCredentials(input LoginInput) (*models.User, error) {
-	user, err := s.userRepo.FindByEmail(input.Email)
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, errors.New("email atau password salah")
+	user, dbErr := s.userRepo.FindByEmail(input.Email)
+
+	if dbErr == nil {
+		// ── User found in DB ───────────────────────────────────────────────────
+		if !user.IsActive {
+			return nil, errors.New("akun tidak aktif")
 		}
-		return nil, err
+
+		switch user.AuthType {
+		case models.AuthTypeLocal:
+			if err := utils.CheckPassword(user.Password, input.Password); err != nil {
+				return nil, errors.New("email atau password salah")
+			}
+
+		case models.AuthTypeLDAP:
+			ldapUsername := extractLDAPUsername(input.Email)
+			if _, err := utils.LDAPAuthenticate(ldapUsername, input.Password); err != nil {
+				return nil, errors.New("email atau password salah")
+			}
+
+		default:
+			return nil, errors.New("tipe autentikasi tidak dikenal")
+		}
+
+		return user, nil
 	}
 
-	if !user.IsActive {
-		// Distinguish between "not yet verified" and "disabled by admin"
-		if user.EmailVerifiedAt == nil && config.App.Feature.EnableEmailVerification {
-			return nil, errors.New("akun belum diverifikasi, silakan cek email Anda")
-		}
-		return nil, errors.New("akun tidak aktif")
+	// ── User NOT found in DB — only proceed if it's an ErrRecordNotFound ──────
+	if dbErr != gorm.ErrRecordNotFound {
+		return nil, dbErr
 	}
 
-	if err := utils.CheckPassword(user.Password, input.Password); err != nil {
+	// ── Try LDAP (auto-create flow) ────────────────────────────────────────────
+	if config.App.LDAP.Host == "" {
+		// LDAP is not configured and the user isn't in the DB.
 		return nil, errors.New("email atau password salah")
 	}
 
-	return user, nil
+	ldapUsername := extractLDAPUsername(input.Email)
+	ldapInfo, err := utils.LDAPAuthenticate(ldapUsername, input.Password)
+	if err != nil {
+		return nil, errors.New("email atau password salah")
+	}
+
+	// Resolve email: prefer the one from LDAP, fall back to the login input.
+	email := ldapInfo.Email
+	if email == "" {
+		email = input.Email
+	}
+
+	// Resolve division
+	var division *string
+	if ldapInfo.Division != "" {
+		division = &ldapInfo.Division
+	}
+
+	// Create the user with role "user" — admins must be promoted manually.
+	newUser := &models.User{
+		Name:     ldapInfo.Name,
+		Email:    email,
+		AuthType: models.AuthTypeLDAP,
+		Role:     models.RoleUser,
+		Division: division,
+		IsActive: true,
+	}
+
+	if err := s.userRepo.Create(newUser); err != nil {
+		return nil, errors.New("gagal membuat akun secara otomatis: " + err.Error())
+	}
+
+	if _, err := s.userRepo.GetOrCreatePreferences(newUser.ID); err != nil {
+		// Non-fatal; log but don't fail the login.
+		_ = err
+	}
+
+	// Return fresh record with Preferences pre-loaded.
+	return s.userRepo.FindByID(newUser.ID)
 }
 
+// extractLDAPUsername strips the domain part from an email address so that
+// "john.doe@perusahaan.com" becomes "john.doe" for the sAMAccountName lookup.
+// If the value contains no "@", it is returned as-is.
+func extractLDAPUsername(email string) string {
+	if idx := strings.Index(email, "@"); idx > 0 {
+		return email[:idx]
+	}
+	return email
+}
+
+// ── Session helpers ───────────────────────────────────────────────────────────
+
 // CreateLoginSession generates JWT tokens, stores a UserSession record, and
-// returns the complete LoginResponse. Called after credentials (and optionally OTP)
-// have already been validated.
+// returns the complete LoginResponse.
 func (s *AuthService) CreateLoginSession(user *models.User, rememberMe bool, ipAddress, userAgent *string) (*LoginResponse, error) {
 	accessToken, refreshToken, accessExpiry, refreshExpiry, err := utils.GenerateToken(user, rememberMe)
 	if err != nil {
@@ -170,7 +250,7 @@ func (s *AuthService) CreateLoginSession(user *models.User, rememberMe bool, ipA
 }
 
 // CreateSessionForUser looks up a user by ID then calls CreateLoginSession.
-// Used by the OTP-login second step where we already have the user ID.
+// Used by the OTP-login second step.
 func (s *AuthService) CreateSessionForUser(userID uint, rememberMe bool, ipAddress, userAgent *string) (*LoginResponse, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
@@ -185,7 +265,6 @@ func (s *AuthService) CreateSessionForUser(userID uint, rememberMe bool, ipAddre
 }
 
 // ActivateUser marks the user as active and records the email verification timestamp.
-// Called after a successful email-verification OTP check.
 func (s *AuthService) ActivateUser(userID uint) (*models.User, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
@@ -201,19 +280,6 @@ func (s *AuthService) ActivateUser(userID uint) (*models.User, error) {
 	}
 
 	return s.userRepo.FindByID(userID)
-}
-
-// ── Classic Login (no OTP) ────────────────────────────────────────────────────
-
-// Login is the classic single-step login used when ENABLE_OTP_LOGIN=false.
-// It validates credentials and immediately creates a session.
-func (s *AuthService) Login(input LoginInput, ipAddress, userAgent *string) (*LoginResponse, error) {
-	user, err := s.ValidateCredentials(input)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.CreateLoginSession(user, input.RememberMe, ipAddress, userAgent)
 }
 
 // ── Logout ────────────────────────────────────────────────────────────────────

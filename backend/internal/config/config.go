@@ -18,6 +18,7 @@ type Config struct {
 	CORS     CORSConfig
 	Email    EmailConfig
 	Feature  FeatureConfig
+	LDAP     LDAPConfig // ← NEW
 }
 
 type AppConfig struct {
@@ -62,9 +63,25 @@ type EmailConfig struct {
 }
 
 type FeatureConfig struct {
-	EnableEmailVerification  bool // Require OTP verification after registration
-	EnableOTPLogin           bool // Require OTP after password check on login
+	EnableEmailVerification  bool
+	EnableOTPLogin           bool
 	EnableEmailNotifications bool
+}
+
+// LDAPConfig holds all Active Directory / LDAP connection settings.
+type LDAPConfig struct {
+	Host               string // e.g. "ldap.perusahaan.com"
+	Port               int    // 389 (plain) or 636 (SSL)
+	UseSSL             bool   // true → DialTLS, false → Dial
+	InsecureSkipVerify bool   // skip TLS cert check (dev only!)
+	BindDN             string // service account DN used for searching
+	BindPassword       string
+	BaseDN             string // search base, e.g. "dc=perusahaan,dc=com"
+	UserFilter         string // Go fmt string with ONE %s, e.g. "(sAMAccountName=%s)"
+	AttrName           string // AD attribute for display name, e.g. "displayName"
+	AttrEmail          string // AD attribute for email,        e.g. "mail"
+	AttrDivision       string // AD attribute for department,   e.g. "department"
+	DefaultEmailDomain string // fallback domain when mail attr is empty
 }
 
 var App *Config
@@ -117,9 +134,26 @@ func LoadConfig() (*Config, error) {
 			FromEmail:    getEnv("SMTP_FROM_EMAIL", "noreply@roombooking.com"),
 		},
 		Feature: FeatureConfig{
+			// Email verification & OTP are disabled in LDAP mode;
+			// keep these false unless you have a specific reason.
 			EnableEmailVerification:  getEnvAsBool("ENABLE_EMAIL_VERIFICATION", false),
 			EnableOTPLogin:           getEnvAsBool("ENABLE_OTP_LOGIN", false),
 			EnableEmailNotifications: getEnvAsBool("ENABLE_EMAIL_NOTIFICATIONS", false),
+		},
+		// ── LDAP / Active Directory ────────────────────────────────────────────
+		LDAP: LDAPConfig{
+			Host:               getEnv("LDAP_HOST", ""),
+			Port:               getEnvAsInt("LDAP_PORT", 389),
+			UseSSL:             getEnvAsBool("LDAP_USE_SSL", false),
+			InsecureSkipVerify: getEnvAsBool("LDAP_INSECURE_SKIP_VERIFY", false),
+			BindDN:             getEnv("LDAP_BIND_DN", ""),
+			BindPassword:       getEnv("LDAP_BIND_PASSWORD", ""),
+			BaseDN:             getEnv("LDAP_BASE_DN", ""),
+			UserFilter:         getEnv("LDAP_USER_FILTER", "(sAMAccountName=%s)"),
+			AttrName:           getEnv("LDAP_ATTR_NAME", "displayName"),
+			AttrEmail:          getEnv("LDAP_ATTR_EMAIL", "mail"),
+			AttrDivision:       getEnv("LDAP_ATTR_DIVISION", "department"),
+			DefaultEmailDomain: getEnv("LDAP_DEFAULT_EMAIL_DOMAIN", ""),
 		},
 	}
 
@@ -131,10 +165,17 @@ func LoadConfig() (*Config, error) {
 		log.Println("Warning: Using default JWT secret, please change in production!")
 	}
 
-	// Warn if OTP features are enabled but SMTP is not configured
-	if (config.Feature.EnableEmailVerification || config.Feature.EnableOTPLogin) &&
-		config.Email.SMTPUsername == "" {
-		log.Println("⚠️  [WARNING] OTP/Email features are enabled but SMTP_USERNAME is not set!")
+	// Validate LDAP config in production
+	if config.App.Env == "production" {
+		if config.LDAP.Host == "" {
+			log.Println("⚠️  [WARNING] LDAP_HOST is not set in production!")
+		}
+		if config.LDAP.BindDN == "" {
+			log.Println("⚠️  [WARNING] LDAP_BIND_DN is not set in production!")
+		}
+		if config.LDAP.BaseDN == "" {
+			log.Println("⚠️  [WARNING] LDAP_BASE_DN is not set in production!")
+		}
 	}
 
 	App = config

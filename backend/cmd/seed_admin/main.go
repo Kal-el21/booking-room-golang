@@ -40,17 +40,21 @@ func main() {
 	var existingUser models.User
 	result := database.DB.Where("email = ?", adminEmail).First(&existingUser)
 	if result.Error == nil {
-		log.Printf("⚠️  Admin user with email %s already exists (ID: %d)", adminEmail, existingUser.ID)
+		log.Printf("⚠️  Admin user with email %s already exists (ID: %d, auth_type: %s)",
+			adminEmail, existingUser.ID, existingUser.AuthType)
 		log.Println("To update the existing admin, manually update the record or delete and re-run this command.")
 		os.Exit(0)
 	}
 
 	// Create admin user
+	// AuthType HARUS "local" agar login menggunakan password bcrypt di DB,
+	// bukan diverifikasi ke Active Directory.
 	admin := models.User{
 		Name:     adminName,
 		Email:    adminEmail,
 		Password: hashedPassword,
-		Role:     models.RoleRoomAdmin, // Admin role
+		AuthType: models.AuthTypeLocal, // ← WAJIB: admin login pakai password lokal, bukan LDAP
+		Role:     models.RoleRoomAdmin,
 		Division: &adminDivision,
 		IsActive: true,
 	}
@@ -59,10 +63,27 @@ func main() {
 		log.Fatalf("Failed to create admin user: %v", err)
 	}
 
+	// Buat default preferences agar tidak nil pointer di endpoint /users/me
+	preferences := models.UserPreference{
+		UserID:             admin.ID,
+		Notification24h:    true,
+		Notification3h:     true,
+		Notification30m:    true,
+		EmailNotifications: false,
+		OtpLoginEnabled:    false,
+	}
+	if err := database.DB.Create(&preferences).Error; err != nil {
+		// Non-fatal: admin tetap bisa login, preferences bisa dibuat ulang otomatis
+		log.Printf("⚠️  Warning: failed to create preferences for admin: %v", err)
+	}
+
 	fmt.Printf("✅ Admin user created successfully!\n")
-	fmt.Printf("   Email:    %s\n", adminEmail)
-	fmt.Printf("   Division: %s\n", adminDivision)
-	fmt.Printf("   Password: %s\n", adminPassword)
-	fmt.Printf("   Role:     %s\n", models.RoleRoomAdmin)
-	fmt.Printf("   ID:       %d\n", admin.ID)
+	fmt.Printf("   Email:     %s\n", adminEmail)
+	fmt.Printf("   Division:  %s\n", adminDivision)
+	fmt.Printf("   Password:  %s\n", adminPassword)
+	fmt.Printf("   Role:      %s\n", models.RoleRoomAdmin)
+	fmt.Printf("   AuthType:  %s\n", models.AuthTypeLocal)
+	fmt.Printf("   ID:        %d\n", admin.ID)
+	fmt.Println()
+	fmt.Println("⚠️  Simpan password di atas dengan aman — tidak bisa dipulihkan.")
 }
