@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/middleware"
@@ -22,28 +21,44 @@ func NewNotificationHandler(notificationService *services.NotificationService) *
 	}
 }
 
-// StreamNotifications handles SSE connection for real-time notifications
-// @route GET /api/v1/notifications/stream
-func (h *NotificationHandler) StreamNotifications(c *gin.Context) {
-	// Get token from Authorization header or query param (for compatibility)
-	token := c.GetHeader("Authorization")
-	if token != "" {
-		// Remove "Bearer " prefix if present
-		token = strings.TrimPrefix(token, "Bearer ")
-	} else {
-		// Fallback to query param
-		token = c.Query("token")
-	}
+// IssueStreamTicket menerbitkan tiket sementara untuk koneksi SSE.
+// Tiket diikat ke IP peminta, expired 5 detik, dan hanya bisa dipakai sekali.
+//
+// @route POST /api/v1/notifications/stream-ticket
+func (h *NotificationHandler) IssueStreamTicket(c *gin.Context) {
+	user, _ := middleware.GetCurrentUser(c)
+	clientIP := c.ClientIP()
 
-	if token == "" {
-		c.JSON(401, gin.H{"error": "token required in Authorization header or query parameter"})
+	ticket, err := services.GetSSETicketStore().Issue(user.ID, clientIP)
+	if err != nil {
+		utils.ErrorResponse(c, 500, "Failed to issue stream ticket", err.Error())
 		return
 	}
 
-	// Validate token
-	claims, err := utils.ValidateToken(token)
+	utils.SuccessResponse(c, 200, "Stream ticket issued", gin.H{
+		"ticket":     ticket,
+		"expires_in": 5,
+	})
+}
+
+// StreamNotifications handles SSE connection.
+// Validasi: tiket harus ada, belum expired, dan IP harus sama dengan saat tiket diterbitkan.
+//
+// @route GET /api/v1/notifications/stream?ticket=<ticket>
+func (h *NotificationHandler) StreamNotifications(c *gin.Context) {
+	ticket := c.Query("ticket")
+	if ticket == "" {
+		c.JSON(401, gin.H{"error": "stream ticket is required"})
+		return
+	}
+
+	clientIP := c.ClientIP()
+
+	// Consume: validasi tiket + IP, langsung hapus (one-time use)
+	userID, err := services.GetSSETicketStore().Consume(ticket, clientIP)
 	if err != nil {
-		c.JSON(401, gin.H{"error": "invalid or expired token"})
+		// Jangan bocorkan alasan spesifik ke client
+		c.JSON(401, gin.H{"error": "invalid or expired stream ticket"})
 		return
 	}
 
@@ -51,42 +66,32 @@ func (h *NotificationHandler) StreamNotifications(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no") // Disable nginx buffering
+	c.Header("X-Accel-Buffering", "no")
 
-	// Get SSE manager
 	manager := services.GetSSEManager()
-
-	// Register client
-	client := manager.RegisterClient(claims.UserID)
+	client := manager.RegisterClient(userID)
 	defer manager.UnregisterClient(client)
 
-	// Send initial connection success message
+	// Kirim pesan koneksi sukses
 	c.Writer.Write([]byte(services.FormatSSEMessage(services.SSEMessage{
 		Event: "connected",
 		Data: map[string]interface{}{
-			"user_id":   claims.UserID,
+			"user_id":   userID,
 			"timestamp": time.Now().Unix(),
 			"message":   "Connected to notification stream",
 		},
 	})))
 	c.Writer.Flush()
 
-	// Create done channel to detect client disconnect
 	clientGone := c.Request.Context().Done()
 
-	// Stream messages
 	for {
 		select {
 		case <-clientGone:
-			// Client disconnected
 			return
-
 		case msg := <-client.Channel:
-			// Format and send SSE message
-			formattedMsg := services.FormatSSEMessage(msg)
-			_, err := c.Writer.Write([]byte(formattedMsg))
+			_, err := c.Writer.Write([]byte(services.FormatSSEMessage(msg)))
 			if err != nil {
-				// Client disconnected
 				return
 			}
 			c.Writer.Flush()
