@@ -102,6 +102,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 
 			// Notifications
 			protected.GET("/notifications", notificationHandler.GetNotifications)
+			protected.POST("/notifications/stream-ticket", notificationHandler.IssueStreamTicket)
 			protected.GET("/notifications/stream", notificationHandler.StreamNotifications)
 			protected.GET("/notifications/unread-count", notificationHandler.GetUnreadCount)
 			protected.PUT("/notifications/:id/mark-as-read", notificationHandler.MarkAsRead)

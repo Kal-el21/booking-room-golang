@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { getSSEService } from '@/services/sse.service';
 import type { Notification } from '@/types';
 import { toast } from 'sonner';
+import api from '@/services/api';
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -18,6 +19,18 @@ interface NotificationProviderProps {
   children: ReactNode;
 }
 
+/**
+ * Minta short-lived ticket dari server.
+ * JWT dikirim via Authorization header (tidak terlihat di URL / Network tab).
+ * Tiket berlaku 30 detik dan hanya bisa dipakai sekali.
+ */
+async function fetchSSETicket(): Promise<string> {
+  const response = await api.post<{ success: boolean; data: { ticket: string } }>(
+    '/api/v1/notifications/stream-ticket'
+  );
+  return response.data.data.ticket;
+}
+
 export function NotificationProvider({ children }: NotificationProviderProps) {
   const { user, isAuthenticated } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -25,55 +38,41 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated || !user) {
-      return;
-    }
-
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      return;
-    }
+    if (!isAuthenticated || !user) return;
 
     const sseService = getSSEService();
 
-    // Handle new notifications
     const handleNotification = (data: any) => {
-      console.log('SSE: New notification received', data);
-      
-      if (data.notification) {
-        const notification: Notification = data.notification;
-        
-        // Add to notifications list
-        setNotifications((prev) => [notification, ...prev].slice(0, 50)); // Keep last 50
-        
-        // Update unread count
-        if (!notification.is_read) {
-          setUnreadCount((prev) => prev + 1);
-        }
+      if (!data.notification) return;
+      const notification: Notification = data.notification;
 
-        // Show toast notification
-        toast.info(notification.title, {
-          description: notification.message,
-          duration: 5000,
-        });
+      setNotifications((prev) => [notification, ...prev].slice(0, 50));
+      if (!notification.is_read) {
+        setUnreadCount((prev) => prev + 1);
       }
+      toast.info(notification.title, {
+        description: notification.message,
+        duration: 5000,
+      });
     };
 
-    // Handle connection status
     const handleConnectionFailed = () => {
       setIsConnected(false);
       console.error('SSE: Connection failed after multiple attempts');
     };
 
-    // Register event handlers
     sseService.on('notification', handleNotification);
     sseService.on('connection-failed', handleConnectionFailed);
 
-    // Connect to SSE
-    sseService.connect(token);
-    setIsConnected(true);
+    /**
+     * Passing fetchSSETicket sebagai callback (TicketProvider).
+     * SSEService akan memanggil callback ini setiap reconnect
+     * sehingga selalu mendapat tiket baru yang valid.
+     */
+    sseService.connect(fetchSSETicket).then(() => {
+      setIsConnected(true);
+    });
 
-    // Cleanup on unmount
     return () => {
       sseService.off('notification', handleNotification);
       sseService.off('connection-failed', handleConnectionFailed);
@@ -94,16 +93,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     setUnreadCount(0);
   };
 
-  const value: NotificationContextType = {
-    notifications,
-    unreadCount,
-    isConnected,
-    addNotification,
-    clearNotifications,
-  };
-
   return (
-    <NotificationContext.Provider value={value}>
+    <NotificationContext.Provider
+      value={{ notifications, unreadCount, isConnected, addNotification, clearNotifications }}
+    >
       {children}
     </NotificationContext.Provider>
   );
