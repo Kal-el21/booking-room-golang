@@ -127,7 +127,7 @@ export const RegisterPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="division">Division (Optional)</Label>
+              <Label htmlFor="division">Division *</Label>
               <Input
                 id="division"
                 name="division"
@@ -135,6 +135,7 @@ export const RegisterPage = () => {
                 placeholder="e.g. IT, HR, Finance"
                 value={formData.division}
                 onChange={handleChange}
+                required
                 disabled={isLoading}
               />
             </div>

@@ -29,7 +29,7 @@ type RegisterInput struct {
 	Email    string          `json:"email" binding:"required,email"`
 	Password string          `json:"password" binding:"required,min=6"`
 	Role     models.UserRole `json:"role"`
-	Division *string         `json:"division"`
+	Division string          `json:"division" binding:"required"`
 }
 
 type LoginInput struct {
@@ -83,7 +83,7 @@ func (s *AuthService) Register(input RegisterInput) (*models.User, error) {
 		Email:    input.Email,
 		Password: hashedPassword,
 		Role:     role,
-		Division: input.Division,
+		Division: &input.Division,
 		IsActive: isActive,
 	}
 

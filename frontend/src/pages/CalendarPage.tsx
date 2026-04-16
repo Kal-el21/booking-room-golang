@@ -22,59 +22,57 @@ import type { CalendarEvent } from '@/services/calendar.service';
  */
 const expandCalendarEvent = (event: CalendarEvent, calendarStart: Date, calendarEnd: Date): CalendarEvent[] => {
   const expandedEvents: CalendarEvent[] = [];
+  
+  if (event.type === 'booking') {
+    return [event];
+  }
+
   const eventStart = parseISO(event.start);
-  const eventEnd = event.end_date ? parseISO(event.end_date) : eventStart;
+  const eventStartDay = new Date(eventStart);
+  eventStartDay.setHours(0, 0, 0, 0);
+
+  const eventEnd = event.end_date ? parseISO(event.end_date) : eventStartDay;
   const recurringEndDate = event.recurring_end_date ? parseISO(event.recurring_end_date) : null;
 
-  // If not recurring and not multi-day, return as is
   if (!event.is_recurring && !event.end_date) {
     return [event];
   }
 
-  // Handle recurring events
   if (event.is_recurring && event.recurring_type) {
     const daysMap: Record<string, number> = {
-      '1': 1, // Monday
-      '2': 2, // Tuesday
-      '3': 3, // Wednesday
-      '4': 4, // Thursday
-      '5': 5, // Friday
-      '6': 6, // Saturday
-      '7': 0, // Sunday
+      '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 0,
     };
 
     const recurringDays = event.recurring_days?.split(',').map(d => daysMap[d.trim()]) || [];
-    
-    // Determine the effective end date for recurring
     const effectiveEnd = recurringEndDate || eventEnd;
     
-    // Get all days in the calendar range
-    const allDays = eachDayOfInterval({ start: eventStart, end: effectiveEnd });
+    if (effectiveEnd < eventStartDay) {
+      return [event];
+    }
+
+    const allDays = eachDayOfInterval({ start: eventStartDay, end: effectiveEnd });
     
     for (const day of allDays) {
-      // Check if this day matches the recurring pattern
       const shouldInclude = (
         (event.recurring_type === 'daily') ||
         (recurringDays.includes(getDay(day)))
       );
       
       if (shouldInclude) {
-        // Check if this day is within the calendar view
         if (isWithinInterval(day, { start: calendarStart, end: calendarEnd })) {
-          // Create a new event for this day
           const dayStart = new Date(day);
           dayStart.setHours(eventStart.getHours(), eventStart.getMinutes());
           
           const dayEnd = new Date(day);
-          dayEnd.setHours(eventEnd.getHours(), eventEnd.getMinutes());
+          const originalEnd = parseISO(event.end);
+          dayEnd.setHours(originalEnd.getHours(), originalEnd.getMinutes());
           
           expandedEvents.push({
             ...event,
             id: `${event.id}_${format(day, 'yyyy-MM-dd')}`,
             start: dayStart.toISOString(),
             end: dayEnd.toISOString(),
-            // Mark as expanded occurrence
-            title: `${event.title} (${format(day, 'MMM dd')})`,
+            title: `${event.room_name || 'Room'} - ${event.title || event.purpose || 'Booking'} (${format(day, 'MMM dd')})`,
           });
         }
       }
@@ -83,27 +81,28 @@ const expandCalendarEvent = (event: CalendarEvent, calendarStart: Date, calendar
     return expandedEvents;
   }
 
-  // Handle multi-day events (non-recurring)
-  if (event.end_date && event.start !== event.end_date) {
-    const allDays = eachDayOfInterval({ start: eventStart, end: eventEnd });
+  if (event.end_date) {
+    if (eventEnd < eventStartDay) {
+      return [event];
+    }
+
+    const allDays = eachDayOfInterval({ start: eventStartDay, end: eventEnd });
     
     for (const day of allDays) {
-      // Check if this day is within the calendar view
       if (isWithinInterval(day, { start: calendarStart, end: calendarEnd })) {
-        // Create a new event for this day
         const dayStart = new Date(day);
         dayStart.setHours(eventStart.getHours(), eventStart.getMinutes());
         
         const dayEnd = new Date(day);
-        dayEnd.setHours(eventEnd.getHours(), eventEnd.getMinutes());
+        const originalEnd = parseISO(event.end);
+        dayEnd.setHours(originalEnd.getHours(), originalEnd.getMinutes());
         
         expandedEvents.push({
           ...event,
           id: `${event.id}_${format(day, 'yyyy-MM-dd')}`,
           start: dayStart.toISOString(),
           end: dayEnd.toISOString(),
-          // Mark as multi-day occurrence
-          title: `${event.title} (${format(day, 'MMM dd')})`,
+          title: `${event.room_name || 'Room'} - ${event.title || event.purpose || 'Booking'} (${format(day, 'MMM dd')})`,
         });
       }
     }
@@ -111,16 +110,7 @@ const expandCalendarEvent = (event: CalendarEvent, calendarStart: Date, calendar
     return expandedEvents;
   }
 
-  // Default: return as is
   return [event];
-};
-
-export const CalendarPage = () => {
-  return (
-    <ErrorBoundary>
-      <CalendarPageContent />
-    </ErrorBoundary>
-  );
 };
 
 const CalendarPageContent = () => {
@@ -138,26 +128,22 @@ const CalendarPageContent = () => {
     };
   });
 
-  // Debounced date range for API calls to prevent flickering on fast clicking
   const [debouncedDateRange, setDebouncedDateRange] = useState(dateRange);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch calendar events
   const { data: events, isLoading: eventsLoading, isFetching: eventsFetching } = useCalendar({
     start_date: debouncedDateRange.start,
     end_date: debouncedDateRange.end,
     room_id: selectedRoomId !== 'all' ? parseInt(selectedRoomId) : undefined,
   });
 
-  // Fetch rooms for filter
   const { data: roomsData, isLoading: roomsLoading } = useRooms({
     page: 1,
     page_size: 100,
   });
 
-  // Format events for FullCalendar
   const calendarEvents = useMemo(() => {
-    if (!events) return [];
+    if (!events || !Array.isArray(events)) return [];
 
     const calendarStart = parseISO(debouncedDateRange.start);
     const calendarEnd = parseISO(debouncedDateRange.end);
@@ -165,37 +151,33 @@ const CalendarPageContent = () => {
     const expandedEvents: CalendarEvent[] = [];
 
     for (const event of events) {
+      if (!event) continue;
       const expanded = expandCalendarEvent(event, calendarStart, calendarEnd);
       expandedEvents.push(...expanded);
     }
 
     return expandedEvents.map((event) => {
-      let backgroundColor = '#2563eb'; // Blue - darker for better visibility
+      let backgroundColor = '#2563eb';
       let borderColor = '#2563eb';
       const textColor = '#ffffff';
 
-      // Color coding based on status - darker colors for better contrast
       if (event.type === 'request') {
-        // Pending requests - Amber
         backgroundColor = '#d97706';
         borderColor = '#d97706';
       } else if (event.status === 'confirmed') {
-        // Confirmed bookings - Blue
         backgroundColor = '#2563eb';
         borderColor = '#2563eb';
       } else if (event.status === 'cancelled') {
-        // Cancelled - Red
         backgroundColor = '#dc2626';
         borderColor = '#dc2626';
       } else if (event.status === 'completed') {
-        // Completed - Gray
         backgroundColor = '#4b5563';
         borderColor = '#4b5563';
       }
 
       return {
-        id: event.id.toString(),
-        title: `${event.room_name} - ${event.title || event.purpose || 'Booking'}`,
+        id: event.id?.toString() || Math.random().toString(),
+        title: `${event.room_name || 'Deleted Room'} - ${event.title || event.purpose || 'Booking'}`,
         start: event.start,
         end: event.end,
         backgroundColor,
@@ -216,24 +198,19 @@ const CalendarPageContent = () => {
   const handleDatesSet = (dateInfo: any) => {
     const newStart = format(dateInfo.start, 'yyyy-MM-dd');
     const newEnd = format(dateInfo.end, 'yyyy-MM-dd');
-    const newDate = dateInfo.start;
-    const newView = dateInfo.view.type;
     
-    // Update the calendar's current date and view to prevent reset
-    setCurrentDate(newDate);
-    setCurrentView(newView);
+    setCurrentDate(dateInfo.start);
+    setCurrentView(dateInfo.view.type);
     
-    // Check if dates actually changed
     if (newStart !== dateRange.start || newEnd !== dateRange.end) {
       setDateRange({ start: newStart, end: newEnd });
 
-      // Debounce the actual API update
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
       debounceTimerRef.current = setTimeout(() => {
         setDebouncedDateRange({ start: newStart, end: newEnd });
-      }, 300); // 300ms debounce
+      }, 300);
     }
   };
 
@@ -242,7 +219,6 @@ const CalendarPageContent = () => {
       return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending Request</Badge>;
     }
 
-    // Show multi-day/recurring badge
     if (event.is_recurring || event.end_date) {
       return (
         <div className="flex gap-1">
@@ -270,7 +246,6 @@ const CalendarPageContent = () => {
     return <Badge variant={variant}>{label}</Badge>;
   };
 
-  // Only show full skeleton on initial load, not when re-fetching
   const isInitialLoading = (eventsLoading && !events) || roomsLoading;
   const isFetchingMore = eventsFetching && !!events;
 
@@ -283,9 +258,10 @@ const CalendarPageContent = () => {
     );
   }
 
+  const rooms = Array.isArray(roomsData?.data) ? roomsData.data : [];
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <div>
@@ -303,11 +279,9 @@ const CalendarPageContent = () => {
         </div>
       </div>
 
-      {/* Filters & Legend */}
       <Card>
         <CardContent className="pt-6">
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Room Filter */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Filter by Room</label>
               <Select value={selectedRoomId} onValueChange={setSelectedRoomId}>
@@ -316,16 +290,19 @@ const CalendarPageContent = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Rooms</SelectItem>
-                  {roomsData?.data.map((room) => (
-                    <SelectItem key={room.id} value={room.id.toString()}>
-                      {room.room_name} - {room.location}
-                    </SelectItem>
-                  ))}
+                  {rooms.length > 0 ? (
+                    rooms.map((room) => (
+                      <SelectItem key={room.id} value={room.id.toString()}>
+                        {room.room_name} - {room.location}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none" disabled>No rooms available</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Legend */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Legend</label>
               <div className="flex flex-wrap gap-2">
@@ -351,7 +328,6 @@ const CalendarPageContent = () => {
         </CardContent>
       </Card>
 
-      {/* Calendar */}
       <Card>
         <CardContent className="pt-6">
           <FullCalendar
@@ -368,7 +344,7 @@ const CalendarPageContent = () => {
             eventClick={handleEventClick}
             datesSet={handleDatesSet}
             height="auto"
-            firstDay={1} // Monday
+            firstDay={1}
             slotMinTime="07:00:00"
             slotMaxTime="20:00:00"
             allDaySlot={false}
@@ -387,7 +363,6 @@ const CalendarPageContent = () => {
         </CardContent>
       </Card>
 
-      {/* Event Details Dialog */}
       <Dialog open={eventDialogOpen} onOpenChange={setEventDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -402,12 +377,10 @@ const CalendarPageContent = () => {
 
           {selectedEvent && (
             <div className="space-y-4 py-4">
-              {/* Status Badge */}
               <div className="flex items-center gap-2">
                 {getStatusBadge(selectedEvent.status, selectedEvent.type, selectedEvent)}
               </div>
 
-              {/* Multi-day/Recurring Info */}
               {(selectedEvent.is_recurring || selectedEvent.end_date) && (
                 <div className="bg-muted rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
@@ -434,7 +407,6 @@ const CalendarPageContent = () => {
                 </div>
               )}
 
-              {/* Room */}
               <div className="flex items-start gap-3">
                 <DoorOpen className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div className="flex-1">
@@ -443,7 +415,6 @@ const CalendarPageContent = () => {
                 </div>
               </div>
 
-              {/* User Name (for GA/Admin) */}
               {selectedEvent.user_name && (
                 <div className="flex items-start gap-3">
                   <User className="h-5 w-5 text-muted-foreground mt-0.5" />
@@ -454,7 +425,6 @@ const CalendarPageContent = () => {
                 </div>
               )}
 
-              {/* Purpose */}
               {selectedEvent.purpose && (
                 <div className="flex items-start gap-3">
                   <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
@@ -465,7 +435,6 @@ const CalendarPageContent = () => {
                 </div>
               )}
 
-              {/* Date & Time */}
               <div className="flex items-start gap-3">
                 <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div className="flex-1">
@@ -480,7 +449,6 @@ const CalendarPageContent = () => {
                 </div>
               </div>
 
-              {/* Type Indicator */}
               <div className="bg-muted rounded-lg p-3 text-sm">
                 {selectedEvent.type === 'request' ? (
                   <p className="text-muted-foreground">
@@ -497,5 +465,13 @@ const CalendarPageContent = () => {
         </DialogContent>
       </Dialog>
     </div>
+  );
+};
+
+export const CalendarPage = () => {
+  return (
+    <ErrorBoundary>
+      <CalendarPageContent />
+    </ErrorBoundary>
   );
 };

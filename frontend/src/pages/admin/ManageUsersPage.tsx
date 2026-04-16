@@ -72,7 +72,7 @@ export const ManageUsersPage = () => {
         data: {
           name: formData.name,
           role: formData.role,
-          division: formData.division || null,
+          division: formData.division,
           is_active: formData.is_active,
         },
       });
@@ -116,10 +116,14 @@ export const ManageUsersPage = () => {
     const config: Record<string, any> = {
       user: { variant: 'secondary', label: 'User' },
       room_admin: { variant: 'default', label: 'Room Admin' },
-      GA: { variant: 'outline', label: 'GA' },
+      GA: { 
+        variant: 'outline', 
+        label: 'GA',
+        className: 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm'
+      },
     };
-    const { variant, label } = config[role] || config.user;
-    return <Badge variant={variant}>{label}</Badge>;
+    const { variant, label, className } = config[role] || config.user;
+    return <Badge variant={variant} className={className}>{label}</Badge>;
   };
 
   if (isLoading) {
@@ -139,7 +143,7 @@ export const ManageUsersPage = () => {
         user.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const isFormValid = formData.name.trim();
+  const isFormValid = formData.name.trim() !== '' && formData.division.trim() !== '';
 
   return (
     <div className="space-y-6">
@@ -339,7 +343,7 @@ export const ManageUsersPage = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-division">Division</Label>
+                <Label htmlFor="edit-division">Division *</Label>
                 <Input
                   id="edit-division"
                   placeholder="e.g., IT, Finance, HR"
