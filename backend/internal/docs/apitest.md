@@ -65,7 +65,8 @@ Content-Type: application/json
   "name": "John Doe",
   "email": "john@example.com",
   "password": "password123",
-  "role": "user"
+  "role": "user",
+  "division": "IT"
 }
 ```
 
@@ -1234,4 +1235,4 @@ View Room B calendar: User 1 & 2's bookings
 
 ---
 
-**Happy Testing! 🚀**
+**Happy Testing! 🚀**sting! 🚀**

@@ -70,11 +70,13 @@ booking-room-golang/
    ```bash
    cp .env.example .env
    ```
+   *Penting: Buka file `.env` dan pastikan `VITE_API_BASE_URL` mengarah ke URL backend Anda (default: `http://localhost:88`). Variabel ini akan di-inject ke frontend saat proses build Docker.*
+
 2. **Backend Directory:**
    ```bash
    cp backend/.env.example backend/.env
    ```
-   *Edit `backend/.env` with your SMTP credentials for Email/OTP features to work.*
+   *Edit `backend/.env` with your SMTP/LDAP credentials for Email/OTP features to work.*
 
 ### 2. Running with Docker (Recommended)
 
@@ -84,17 +86,25 @@ docker compose up -d --build
 ```
 *The system will automatically run migrations and seed the initial admin user.*
 
-### 3. Local Development
+Setelah container berjalan, Anda dapat mengakses:
+- **Frontend:** `http://localhost:88`
+- **Backend API:** `http://localhost:8080`
 
-- **Backend:** `cd backend && make dev` (requires [air](https://github.com/cosmtrek/air))
-- **Frontend:** `cd frontend && npm install && npm run dev`
+### 3. Initialize Admin User
+The system will attempt to seed the initial admin user automatically. However, if you have built the containers previously or the user doesn't exist, run this command:
+```bash
+docker compose exec backend ./seed_admin
+```
+
+---
 
 ## 🔑 Default Admin Credentials
 
 If the auto-seeder runs, you can log in with:
 - **Email:** `admin@indore.co.id`
-- **Password:** `rJsm8kFce4`
+- **Password:** `rJsm8kFce4` / `admin123`
 - **Role:** `room_admin`
+- **Division:** `IT`
 
 ## 📖 Documentation
 

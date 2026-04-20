@@ -12,6 +12,16 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Terima build args dari docker-compose
+ARG VITE_API_BASE_URL
+ARG VITE_APP_NAME
+ARG VITE_APP_VERSION
+
+# Set sebagai ENV supaya Vite bisa baca
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_APP_NAME=$VITE_APP_NAME
+ENV VITE_APP_VERSION=$VITE_APP_VERSION
+
 # Build the application
 RUN npm run build
 

@@ -209,7 +209,7 @@ backend/
 ## 8. Database Schema (Key Tables)
 
 ### Users Table
-Includes `avatar`, `email_verified_at`, and `is_active`.
+Includes `avatar`, `email_verified_at`, `is_active`, and mandatory `division`.
 
 ### System Settings Table (New)
 Stores global config like `enable_otp_login`, `app_name`, etc.
