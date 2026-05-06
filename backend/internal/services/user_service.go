@@ -32,13 +32,12 @@ type ChangePasswordInput struct {
 }
 
 // UpdatePreferencesInput covers all user-configurable preference fields.
-// Using pointers so callers can send partial updates (only changed fields).
 type UpdatePreferencesInput struct {
 	Notification24h    *bool `json:"notification_24h"`
 	Notification3h     *bool `json:"notification_3h"`
 	Notification30m    *bool `json:"notification_30m"`
 	EmailNotifications *bool `json:"email_notifications"`
-	OtpLoginEnabled    *bool `json:"otp_login_enabled"` // NEW
+	OtpLoginEnabled    *bool `json:"otp_login_enabled"`
 }
 
 func (s *UserService) GetUser(id uint) (*models.User, error) {
@@ -101,10 +100,17 @@ func (s *UserService) DeleteUser(id uint) error {
 	return s.userRepo.Delete(id)
 }
 
+// ChangePassword changes the password for LOCAL users only.
+// LDAP users must change their password through Active Directory directly.
 func (s *UserService) ChangePassword(userID uint, input ChangePasswordInput) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return err
+	}
+
+	// Block password change for LDAP-managed accounts
+	if user.IsLDAP() {
+		return errors.New("password dikelola oleh Active Directory dan tidak dapat diubah melalui aplikasi ini")
 	}
 
 	if err := utils.CheckPassword(user.Password, input.CurrentPassword); err != nil {
@@ -119,7 +125,18 @@ func (s *UserService) ChangePassword(userID uint, input ChangePasswordInput) err
 	return s.userRepo.UpdatePassword(userID, hashed)
 }
 
+// ResetPassword resets the password for LOCAL users only (Room Admin only).
+// LDAP users must be reset through Active Directory.
 func (s *UserService) ResetPassword(userID uint, newPassword string) error {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return err
+	}
+
+	if user.IsLDAP() {
+		return errors.New("reset password untuk akun LDAP harus dilakukan melalui Active Directory")
+	}
+
 	hashed, err := utils.HashPassword(newPassword)
 	if err != nil {
 		return err
@@ -167,7 +184,6 @@ func (s *UserService) UpdateAvatar(userID uint, avatarURL string) (*models.User,
 		return nil, err
 	}
 
-	// Remove old avatar file if present
 	if user.Avatar != nil && *user.Avatar != "" {
 		_ = os.Remove("." + strings.TrimPrefix(*user.Avatar, ""))
 	}

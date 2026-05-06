@@ -29,40 +29,18 @@ func NewAuthHandler(
 	}
 }
 
-// Register handles new user registration.
-// ENABLE_EMAIL_VERIFICATION in .env is still system-level (for registration).
+// Register is DISABLED in LDAP mode.
+//
+// User accounts are created automatically on the first successful LDAP login.
+// The initial admin account is seeded via `make seed-admin` / `cmd/seed_admin`.
+//
 // @route POST /api/v1/auth/register
 func (h *AuthHandler) Register(c *gin.Context) {
-	var input services.RegisterInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		utils.ValidationErrorResponse(c, err.Error())
-		return
-	}
-
-	user, err := h.authService.Register(input)
-	if err != nil {
-		utils.ErrorResponse(c, 400, "Registrasi gagal", err.Error())
-		return
-	}
-
-	// Read email verification toggle from DB (set by admin via Settings page).
-	// Falls back to false if the key has never been configured.
-	emailVerificationEnabled := h.systemSettingService.IsEmailVerificationEnabled()
-
-	if emailVerificationEnabled {
-		if err := h.otpService.GenerateAndSend(user, models.OTPTypeEmailVerification); err != nil {
-			log.Printf("[AuthHandler] Register: failed to send verification OTP to %s: %v", user.Email, err)
-		}
-
-		utils.SuccessResponse(c, 201, "Registrasi berhasil. Silakan cek email Anda untuk kode verifikasi.", gin.H{
-			"verification_required": true,
-			"user_id":               user.ID,
-			"email":                 user.Email,
-		})
-		return
-	}
-
-	utils.SuccessResponse(c, 201, "Registrasi berhasil", user.ToResponse())
+	utils.ErrorResponse(c, 410,
+		"Pendaftaran manual dinonaktifkan",
+		"Akun dibuat secara otomatis saat pertama kali login menggunakan kredensial Active Directory Anda. "+
+			"Hubungi administrator jika akun Anda belum aktif.",
+	)
 }
 
 // VerifyEmail validates the email-verification OTP and activates the account.
@@ -119,11 +97,13 @@ func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
 	utils.SuccessResponse(c, 200, "Kode verifikasi telah dikirim ulang", gin.H{"email": email})
 }
 
-// Login handles authentication.
+// Login handles authentication via Active Directory (LDAP).
 //
-// OTP is now a per-user preference (user.Preferences.OtpLoginEnabled).
-// If enabled → send OTP, return pending state.
-// If disabled (default) → return JWT tokens immediately.
+// On the first login the user account is auto-created in PostgreSQL with
+// role "user". Role promotion must be done manually by an admin.
+//
+// If the user has OTP login enabled in their preferences, the flow becomes
+// two-step: credentials → OTP email → JWT tokens.
 //
 // @route POST /api/v1/auth/login
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -136,14 +116,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
-	// Always validate credentials first
+	// Validate credentials (LDAP or local depending on user.AuthType)
 	user, err := h.authService.ValidateCredentials(input)
 	if err != nil {
 		utils.ErrorResponse(c, 401, "Login gagal", err.Error())
 		return
 	}
 
-	// Determine if OTP is needed from this user's own preference (default: false)
+	// Determine if OTP is needed (per-user preference; default false)
 	otpEnabled := user.Preferences != nil && user.Preferences.OtpLoginEnabled
 
 	if otpEnabled {
@@ -162,7 +142,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Classic flow
+	// Classic flow — return JWT tokens immediately
 	response, err := h.authService.CreateLoginSession(user, input.RememberMe, &ipAddress, &userAgent)
 	if err != nil {
 		utils.ErrorResponse(c, 500, "Gagal membuat sesi", err.Error())

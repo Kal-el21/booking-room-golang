@@ -1,11 +1,17 @@
 // Auth Types
 export type UserRole = 'user' | 'room_admin' | 'GA';
 
+// AuthType matches backend models.AuthType
+// "local" → password stored in DB (bcrypt), used for the initial admin seed
+// "ldap"  → password verified against Active Directory
+export type AuthType = 'local' | 'ldap';
+
 export interface User {
   id: number;
   name: string;
   email: string;
   role: UserRole;
+  auth_type: AuthType; // ← NEW: determines whether user is AD-managed or local
   division?: string;
   is_active: boolean;
   avatar?: string;
@@ -20,7 +26,7 @@ export interface UserPreferences {
   notification_3h: boolean;
   notification_30m: boolean;
   email_notifications: boolean;
-  otp_login_enabled: boolean; // NEW — user opts in to OTP on every login
+  otp_login_enabled: boolean;
 }
 
 export interface LoginRequest {
@@ -140,6 +146,7 @@ export interface UserResponse {
   name: string;
   email: string;
   role: UserRole;
+  auth_type?: AuthType; // ← NEW (optional for backward compat)
   division?: string;
   is_active: boolean;
   avatar?: string;
