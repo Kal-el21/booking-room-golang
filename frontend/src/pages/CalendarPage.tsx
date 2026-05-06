@@ -3,6 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import type { EventClickArg, DatesSetArg } from '@fullcalendar/core/index.js';
 
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
@@ -15,7 +16,7 @@ import { useCalendar } from '@/hooks/useCalendar';
 import { useRooms } from '@/hooks/useRooms';
 import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isWithinInterval, getDay } from 'date-fns';
 import { Calendar as CalendarIcon, DoorOpen, User, Clock, FileText, Repeat, Loader2 } from 'lucide-react';
-import type { CalendarEvent } from '@/services/calendar.service';
+import type { CalendarEvent } from '@/types';
 
 /**
  * Expand a multi-day or recurring event into individual calendar events
@@ -114,11 +115,10 @@ const expandCalendarEvent = (event: CalendarEvent, calendarStart: Date, calendar
 };
 
 const CalendarPageContent = () => {
-  const calendarRef = useRef<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState('dayGridMonth');
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
-  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [dateRange, setDateRange] = useState(() => {
     const now = new Date();
@@ -156,7 +156,7 @@ const CalendarPageContent = () => {
       expandedEvents.push(...expanded);
     }
 
-    return expandedEvents.map((event) => {
+    return expandedEvents.map((event, idx) => {
       let backgroundColor = '#2563eb';
       let borderColor = '#2563eb';
       const textColor = '#ffffff';
@@ -176,7 +176,7 @@ const CalendarPageContent = () => {
       }
 
       return {
-        id: event.id?.toString() || Math.random().toString(),
+        id: event.id?.toString() || `event-${idx}`,
         title: `${event.room_name || 'Deleted Room'} - ${event.title || event.purpose || 'Booking'}`,
         start: event.start,
         end: event.end,
@@ -190,12 +190,12 @@ const CalendarPageContent = () => {
     });
   }, [events, debouncedDateRange]);
 
-  const handleEventClick = (info: any) => {
-    setSelectedEvent(info.event.extendedProps);
+  const handleEventClick = (info: EventClickArg) => {
+    setSelectedEvent(info.event.extendedProps as CalendarEvent);
     setEventDialogOpen(true);
   };
 
-  const handleDatesSet = (dateInfo: any) => {
+  const handleDatesSet = (dateInfo: DatesSetArg) => {
     const newStart = format(dateInfo.start, 'yyyy-MM-dd');
     const newEnd = format(dateInfo.end, 'yyyy-MM-dd');
     
@@ -331,7 +331,6 @@ const CalendarPageContent = () => {
       <Card>
         <CardContent className="pt-6">
           <FullCalendar
-            ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView={currentView}
             initialDate={currentDate}
@@ -389,7 +388,7 @@ const CalendarPageContent = () => {
                   </div>
                   {selectedEvent.is_recurring ? (
                     <div className="text-sm text-muted-foreground">
-                      <p>Type: {selectedEvent.recurring_type?.charAt(0).toUpperCase() + selectedEvent.recurring_type?.slice(1)} recurring</p>
+                      <p>Type: {(selectedEvent.recurring_type || '').charAt(0).toUpperCase() + (selectedEvent.recurring_type || '').slice(1)} recurring</p>
                       {selectedEvent.recurring_days && (
                         <p>Days: {selectedEvent.recurring_days.split(',').map((d: string) => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][parseInt(d)-1] || '').join(', ')}</p>
                       )}

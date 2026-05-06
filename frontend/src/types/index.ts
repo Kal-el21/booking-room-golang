@@ -77,6 +77,329 @@ export interface Room {
   updated_at: string;
 }
 
+// Car Types
+export interface Car {
+  id: number;
+  car_name: string;
+  capacity: number;
+  location: string;
+  description?: string;
+  image_url?: string;
+  status: 'available' | 'occupied' | 'maintenance';
+  is_active: boolean;
+  created_by: number;
+  creator?: UserResponse;
+  created_at: string;
+  updated_at: string;
+}
+
+// Request Types
+export interface RoomRequest {
+  id: number;
+  user_id: number;
+  user_name?: string;
+  user?: UserResponse;
+  required_capacity: number;
+  purpose: string;
+  notes?: string;
+  has_consumption: boolean;
+  consumption_note?: string;
+  booking_date: string;
+  end_date?: string;
+  start_time: string;
+  end_time: string;
+  is_recurring: boolean;
+  recurring_type?: 'daily' | 'weekly' | 'monthly';
+  recurring_days?: string;
+  recurring_end_date?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  assigned_by?: number;
+  assigner?: UserResponse;
+  rejected_reason?: string;
+  bookings?: Booking[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateRequestInput {
+  required_capacity: number;
+  purpose: string;
+  notes?: string;
+  has_consumption?: boolean;
+  consumption_note?: string;
+  booking_date: string;
+  end_date?: string;
+  start_time: string;
+  end_time: string;
+  is_recurring?: boolean;
+  recurring_type?: 'daily' | 'weekly' | 'monthly';
+  recurring_days?: string;
+  recurring_end_date?: string;
+}
+
+// Car Request Types
+export interface CarRequest {
+  id: number;
+  user_id: number;
+  user_name?: string;
+  user?: UserResponse;
+  required_capacity: number;
+  purpose: string;
+  notes?: string;
+  has_consumption: boolean;
+  consumption_note?: string;
+  booking_date: string;
+  end_date?: string;
+  start_time: string;
+  end_time: string;
+  is_recurring: boolean;
+  recurring_type?: 'daily' | 'weekly' | 'monthly';
+  recurring_days?: string;
+  recurring_end_date?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  assigned_by?: number;
+  assigner?: UserResponse;
+  rejected_reason?: string;
+  bookings?: CarBooking[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCarRequestInput {
+  required_capacity: number;
+  purpose: string;
+  notes?: string;
+  has_consumption?: boolean;
+  consumption_note?: string;
+  booking_date: string;
+  end_date?: string;
+  start_time: string;
+  end_time: string;
+  is_recurring?: boolean;
+  recurring_type?: 'daily' | 'weekly' | 'monthly';
+  recurring_days?: string;
+  recurring_end_date?: string;
+}
+
+export interface ApproveCarRequestInput {
+  car_id: number;
+  consumption_note?: string;
+}
+
+export interface RejectCarRequestInput {
+  reason: string;
+}
+
+export interface CarResponse {
+  id: number;
+  car_name: string;
+  capacity: number;
+  location: string;
+  description?: string;
+  image_url?: string;
+  status: 'available' | 'occupied' | 'maintenance';
+  is_active: boolean;
+  created_by: number;
+  creator?: UserResponse;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserResponse {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  division?: string;
+  is_active: boolean;
+  avatar?: string;
+  email_verified_at?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface Booking {
+  id: number;
+  request_id: number;
+  room_id: number;
+  room_name?: string;
+  room?: RoomResponse;
+  booked_by: number;
+  booked_by_user?: UserResponse;
+  booking_date: string;
+  end_date?: string;
+  start_time: string;
+  end_time: string;
+  status: 'confirmed' | 'cancelled' | 'completed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CarBooking {
+  id: number;
+  request_id: number;
+  car_id: number;
+  car_name?: string;
+  car?: CarResponse;
+  booked_by: number;
+  booked_by_user?: UserResponse;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  status: 'confirmed' | 'cancelled' | 'completed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoomResponse {
+  id: number;
+  room_name: string;
+  capacity: number;
+  location: string;
+  description?: string;
+  image_url?: string;
+  status: 'available' | 'occupied' | 'maintenance';
+  is_active: boolean;
+  created_by: number;
+  creator?: UserResponse;
+  created_at: string;
+}
+
+export interface Notification {
+  id: number;
+  user_id: number;
+  booking_id?: number;
+  request_id?: number;
+  title: string;
+  message: string;
+  type: 'booking_confirmed' | 'reminder' | 'cancellation' | 'room_changed' | 'request_submitted' | 'request_approved' | 'request_rejected' | 'new_car_request' | 'car_booking_confirmed' | 'car_booking_rejected';
+  channel: 'email' | 'in_app' | 'both';
+  is_read: boolean;
+  read_at?: string;
+  sent_at?: string;
+  created_at: string;
+}
+
+export interface PaginationMeta {
+  current_page: number;
+  per_page: number;
+  total: number;
+  total_pages: number;
+}
+
+export interface PaginatedResponse<T> {
+  success: boolean;
+  message: string;
+  data: T[];
+  meta: PaginationMeta;
+}
+
+export type RequestStatusFilter = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type CarRequestStatusFilter = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface CarFilters {
+  page?: number;
+  page_size?: number;
+  status?: CarRequestStatusFilter;
+  min_capacity?: number;
+  location?: string;
+  is_active?: boolean;
+}
+
+export interface CarRequestFilters {
+  page?: number;
+  page_size?: number;
+  status?: CarRequestStatusFilter;
+}
+
+export interface CarRequestFilters {
+  page?: number;
+  page_size?: number;
+  status?: CarRequestStatusFilter;
+}
+
+export interface CalendarEvent {
+  id: number | string;
+  type: 'booking' | 'request' | 'car_booking' | 'car_request';
+  title: string;
+  start: string;
+  end: string;
+  room_id?: number;
+  room_name?: string;
+  car_id?: number;
+  car_name?: string;
+  status: string;
+  user_name: string;
+  purpose: string;
+  end_date?: string;
+  is_recurring?: boolean;
+  recurring_type?: string;
+  recurring_days?: string;
+  recurring_end_date?: string;
+}
+
+export interface UserPreferences {
+  notification_24h: boolean;
+  notification_3h: boolean;
+  notification_30m: boolean;
+  email_notifications: boolean;
+  otp_login_enabled: boolean; // NEW — user opts in to OTP on every login
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+  remember_me: boolean;
+}
+
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  division?: string;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: User;
+    access_token: string;
+    refresh_token?: string;
+    expires_in: number;
+  };
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message: string;
+  data: T;
+  error?: any;
+  meta?: PaginationMeta;
+}
+
+export interface ApiError {
+  success: false;
+  message: string;
+  error?: any;
+}
+
+// Room Types
+export interface Room {
+  id: number;
+  room_name: string;
+  capacity: number;
+  location: string;
+  description?: string;
+  image_url?: string;
+  status: 'available' | 'occupied' | 'maintenance';
+  is_active: boolean;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // Request Types
 export interface RoomRequest {
   id: number;
@@ -172,29 +495,13 @@ export interface Notification {
   request_id?: number;
   title: string;
   message: string;
-  type: 'booking_confirmed' | 'reminder' | 'cancellation' | 'room_changed' | 'request_submitted' | 'request_approved' | 'request_rejected';
+  type: 'booking_confirmed' | 'reminder' | 'cancellation' | 'room_changed' | 'request_submitted' | 'request_approved' | 'request_rejected' | 'new_car_request' | 'car_booking_confirmed' | 'car_booking_rejected';
   channel: 'email' | 'in_app' | 'both';
   is_read: boolean;
   read_at?: string;
   sent_at?: string;
   created_at: string;
 }
-
-export interface PaginationMeta {
-  current_page: number;
-  per_page: number;
-  total: number;
-  total_pages: number;
-}
-
-export interface PaginatedResponse<T> {
-  success: boolean;
-  message: string;
-  data: T[];
-  meta: PaginationMeta;
-}
-
-export type RequestStatusFilter = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export interface RequestFilters {
   page?: number;

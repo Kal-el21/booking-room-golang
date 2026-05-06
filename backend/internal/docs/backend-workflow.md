@@ -49,7 +49,9 @@ Frontend sends HTTP request to `http://localhost:8080/api/...`
   - [`user_handler.go`](internal/handlers/user_handler.go) - User management
   - [`room_handler.go`](internal/handlers/room_handler.go) - Room management
   - [`booking_handler.go`](internal/handlers/booking_handler.go) - Booking management
-  - [`request_handler.go`](internal/handlers/request_handler.go) - Request management
+  - [`request_handler.go`](internal/handlers/request_handler.go) - Room request management
+  - [`car_handler.go`](internal/handlers/car_handler.go) - Car management (admin only)
+  - [`car_request_handler.go`](internal/handlers/car_request_handler.go) - Car request and booking management
   - [`notification_handler.go`](internal/handlers/notification_handler.go) - Notifications
 
 ### Step 5: Service Layer
@@ -302,6 +304,63 @@ Application Ready
   ]
 }
 ```
+
+---
+
+## 10. Car Booking System
+
+The car booking system follows the same pattern as room booking but is completely separated.
+
+### Architecture
+- Models: `Car`, `CarRequest`, `CarBooking`
+- Handlers: `car_handler.go`, `car_request_handler.go`
+- Services: `car_service.go`, `car_request_service.go`
+- Repositories: `car_repository.go`, `car_request_repository.go`
+
+### Workflow: Request → Approval → Booking
+
+```
+Step 1: User creates car request
+  POST /api/v1/car-requests
+  {
+    "required_capacity": 5,
+    "purpose": "Client visit",
+    "booking_date": "2026-05-10",
+    "start_time": "09:00",
+    "end_time": "17:00",
+    "has_consumption": false
+  }
+
+Step 2: GA approves request (assigns car)
+  POST /api/v1/car-requests/{id}/approve
+  {
+    "car_id": 1,
+    "consumption_note": "Available"
+  }
+  → System creates CarBooking(s) automatically
+  → Notifications sent to user and GA
+
+Step 3: Booking confirmed
+  - CarBooking records created for each date
+  - Calendar updated
+  - Reminders scheduled (24h, 3h, 30m)
+```
+
+### Key Differences from Room Booking
+
+| Feature | Room Booking | Car Booking |
+|---------|-------------|-------------|
+| Resource | Room | Car (with capacity) |
+| Consumption | Optional note | Explicit tracking |
+| Approval | Assign room | Assign car + capacity check |
+| Calendar | `/calendar` | `/car-calendar` |
+| Model | RoomRequest/RoomBooking | CarRequest/CarBooking |
+
+### Car Calendar
+- Separate endpoint: `GET /api/v1/car-calendar`
+- Shows both confirmed bookings and pending requests
+- Filter by `car_id` parameter
+- Same JSON format as room calendar (with `type: car_booking` or `car_request`)
 
 ---
 

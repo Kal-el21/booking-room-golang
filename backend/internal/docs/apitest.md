@@ -1072,6 +1072,219 @@ Authorization: Bearer {{admin_token}}
 
 ---
 
+## 🚗 10. Car Booking API
+
+New car booking system - separate from room booking.
+
+### 10.1 Create Car Request
+```http
+POST {{base_url}}/api/v1/car-requests
+Content-Type: application/json
+Authorization: Bearer {{user_token}}
+
+{
+  "required_capacity": 5,
+  "purpose": "Client visit to headquarters",
+  "booking_date": "2026-05-10",
+  "start_time": "09:00",
+  "end_time": "17:00",
+  "has_consumption": false,
+  "is_recurring": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Car request created successfully",
+  "data": {
+    "id": 1,
+    "user_id": 1,
+    "user_name": "John Doe",
+    "required_capacity": 5,
+    "purpose": "Client visit",
+    "booking_date": "2026-05-10",
+    "start_time": "09:00",
+    "end_time": "17:00",
+    "status": "pending",
+    "has_consumption": false,
+    "is_recurring": false
+  }
+}
+```
+
+**For Multi-Day (add end_date):**
+```json
+{
+  "end_date": "2026-05-12"
+}
+```
+
+**For Recurring (weekly on Mon,Wed,Fri for 1 month):**
+```json
+{
+  "is_recurring": true,
+  "recurring_type": "weekly",
+  "recurring_days": "1,3,5",
+  "recurring_end_date": "2026-06-10"
+}
+```
+
+---
+
+### 10.2 List Car Requests (User)
+```http
+GET {{base_url}}/api/v1/car-requests?page=1&page_size=10&status=pending
+Authorization: Bearer {{user_token}}
+```
+
+---
+
+### 10.3 Update Car Request (User - Pending Only)
+```http
+PUT {{base_url}}/api/v1/car-requests/1
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
+
+{
+  "required_capacity": 7,
+  "purpose": "Updated: Client visit with team",
+  "start_time": "08:00",
+  "end_time": "18:00"
+}
+```
+
+---
+
+### 10.4 Delete Car Request (User - Pending Only)
+```http
+DELETE {{base_url}}/api/v1/car-requests/1
+Authorization: Bearer {{user_token}}
+```
+
+---
+
+### 10.5 Approve Car Request (GA)
+```http
+POST {{base_url}}/api/v1/car-requests/1/approve
+Authorization: Bearer {{ga_token}}
+Content-Type: application/json
+
+{
+  "car_id": 2,
+  "consumption_note": "Car available, no consumption needed"
+}
+```
+
+**Response:** Creates CarBooking record(s) automatically
+```json
+{
+  "success": true,
+  "message": "Car request approved successfully",
+  "data": {
+    "id": 1,
+    "car_id": 2,
+    "car_name": "Toyota Innova",
+    "booking_date": "2026-05-10",
+    "start_time": "09:00",
+    "end_time": "17:00",
+    "status": "confirmed"
+  }
+}
+```
+
+---
+
+### 10.6 Reject Car Request (GA)
+```http
+POST {{base_url}}/api/v1/car-requests/1/reject
+Authorization: Bearer {{ga_token}}
+Content-Type: application/json
+
+{
+  "reason": "No car available with required capacity"
+}
+```
+
+---
+
+### 10.7 Get Available Cars for Request (GA)
+```http
+GET {{base_url}}/api/v1/car-requests/1/available-cars
+Authorization: Bearer {{ga_token}}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Available cars retrieved successfully",
+  "data": [
+    {
+      "id": 2,
+      "car_name": "Toyota Innova",
+      "capacity": 7,
+      "location": "Parking Lot A",
+      "status": "available"
+    }
+  ]
+}
+```
+
+---
+
+### 10.8 Car Calendar (User & GA)
+```http
+GET {{base_url}}/api/v1/car-calendar?start_date=2026-05-01&end_date=2026-05-31&car_id=2
+Authorization: Bearer {{user_token}}
+```
+
+**Parameters:**
+- `start_date` (required): Start date YYYY-MM-DD
+- `end_date` (required): End date YYYY-MM-DD
+- `car_id` (optional): Filter by specific car
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Car calendar retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "type": "car_booking",
+      "title": "Toyota Innova",
+      "start": "2026-05-10T09:00:00",
+      "end": "2026-05-10T17:00:00",
+      "car_id": 2,
+      "car_name": "Toyota Innova",
+      "status": "confirmed",
+      "user_name": "John Doe",
+      "purpose": "Client visit"
+    },
+    {
+      "id": 3,
+      "type": "car_request",
+      "title": "Team Offsite",
+      "start": "2026-05-15T10:00:00",
+      "end": "2026-05-15T16:00:00",
+      "car_id": 0,
+      "car_name": "",
+      "status": "pending",
+      "user_name": "Jane Smith",
+      "purpose": "Team Offsite"
+    }
+  ]
+}
+```
+
+**Type Legend:**
+- `car_booking` = Confirmed booking (has car assigned)
+- `car_request` = Pending request (no car assigned yet)
+
+---
+
 ## 🎯 Complete Testing Flow in Postman
 
 ### Recommended Order:
@@ -1080,17 +1293,24 @@ Authorization: Bearer {{admin_token}}
 2. **Register** 3 users (user, room_admin, GA)
 3. **Login** all 3 users → Save tokens
 4. **Login as Room Admin** → Create 2-3 rooms
-5. **Login as User** → Create room requests:
+5. **Login as Room Admin** → Create 2-3 cars (via `/cars`)
+6. **Login as User** → Create room requests:
    - Single day booking
    - Multi-day booking
    - Recurring booking
-6. **Login as GA** → View pending requests
-7. **GA** → Check available rooms for request
-8. **GA** → Approve request (assign room)
-9. **User** → Check notifications (REST API)
-10. **User** → Connect to SSE stream (Browser/cURL)
-11. **All** → View calendar with bookings
-12. **All** → View bookings list
+7. **Login as User** → Create car requests:
+   - Single day car booking
+   - Multi-day car rental
+   - Recurring car booking (weekly)
+8. **Login as GA** → View pending room & car requests
+9. **GA** → Check available rooms for room request
+10. **GA** → Check available cars for car request
+11. **GA** → Approve room request (assign room)
+12. **GA** → Approve car request (assign car)
+13. **User** → Check notifications (REST API)
+14. **User** → Connect to SSE stream (Browser/cURL)
+15. **All** → View room calendar with bookings
+16. **All** → View car calendar with bookings
 
 ---
 

@@ -19,21 +19,23 @@ import { RoomsPage } from './pages/user/RoomsPage';
 import { CreateRequestPage } from './pages/user/CreateRequestPage';
 import { MyRequestsPage } from './pages/user/MyRequestsPage';
 import { MyBookingsPage } from './pages/user/MyBookingsPage';
+import { CarsPage } from './pages/user/CarsPage';
+import { CreateCarRequestPage } from './pages/user/CreateCarRequestPage';
+import { MyCarRequestsPage } from './pages/user/MyCarRequestsPage';
+import { CarCalendarPage } from './pages/user/CarCalendarPage';
 
 // GA Pages
 import { GADashboard } from './pages/ga/GADashboard';
 import { PendingRequestsPage } from './pages/ga/PendingRequestsPage';
 import { AllBookingsPage } from './pages/ga/AllBookingsPage';
 import { UsersPage as GAUsersPage } from './pages/ga/UsersPage';
+import { CalendarPage } from './pages/CalendarPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 // Admin Pages
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { ManageRoomsPage } from './pages/admin/ManageRoomsPage';
 import { ManageUsersPage } from './pages/admin/ManageUsersPage';
-
-// Shared Pages
-import { CalendarPage } from './pages/CalendarPage';
-import { SettingsPage } from './pages/SettingsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -76,6 +78,10 @@ function App() {
                   <Route path="requests/new" element={<CreateRequestPage />} />
                   <Route path="bookings" element={<MyBookingsPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="cars" element={<CarsPage />} />
+                  <Route path="car-requests" element={<MyCarRequestsPage />} />
+                  <Route path="car-requests/new" element={<CreateCarRequestPage />} />
+                  <Route path="car-calendar" element={<CarCalendarPage />} />
                   <Route path="profile" element={<SettingsPage />} />
                 </Route>
 
@@ -93,6 +99,7 @@ function App() {
                   <Route path="bookings" element={<AllBookingsPage />} />
                   <Route path="users" element={<GAUsersPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="car-calendar" element={<CarCalendarPage />} />
                   <Route path="profile" element={<SettingsPage />} />
                 </Route>
 
@@ -109,6 +116,7 @@ function App() {
                   <Route path="rooms" element={<ManageRoomsPage />} />
                   <Route path="users" element={<ManageUsersPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
+                  <Route path="car-calendar" element={<CarCalendarPage />} />
                   <Route path="profile" element={<SettingsPage />} />
                 </Route>
 

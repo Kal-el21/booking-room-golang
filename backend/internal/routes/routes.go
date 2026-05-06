@@ -16,8 +16,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 	// ── Repositories ────────────────────────────────────────────────────────
 	userRepo := repositories.NewUserRepository(db)
 	roomRepo := repositories.NewRoomRepository(db)
+	carRepo := repositories.NewCarRepository(db)
 	requestRepo := repositories.NewRequestRepository(db)
+	carRequestRepo := repositories.NewCarRequestRepository(db)
 	bookingRepo := repositories.NewBookingRepository(db)
+	carBookingRepo := repositories.NewCarBookingRepository(db)
 	notificationRepo := repositories.NewNotificationRepository(db)
 	otpRepo := repositories.NewOTPRepository(db)
 	systemSettingRepo := repositories.NewSystemSettingRepository(db) // NEW
@@ -28,8 +31,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 	systemSettingService := services.NewSystemSettingService(systemSettingRepo) // NEW
 	userService := services.NewUserService(userRepo)
 	roomService := services.NewRoomService(roomRepo)
+	carService := services.NewCarService(carRepo)
 	notificationService := services.NewNotificationService(notificationRepo)
 	requestService := services.NewRequestService(requestRepo, bookingRepo, roomRepo, notificationRepo, notificationService, userRepo, db)
+	carRequestService := services.NewCarRequestService(carRequestRepo, carBookingRepo, carRepo, notificationRepo, notificationService, userRepo, db)
 	bookingService := services.NewBookingService(bookingRepo, requestRepo, notificationRepo, notificationService)
 
 	// ── Handlers ────────────────────────────────────────────────────────────
@@ -37,7 +42,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 	systemSettingHandler := handlers.NewSystemSettingHandler(systemSettingService)        // NEW
 	userHandler := handlers.NewUserHandler(userService)
 	roomHandler := handlers.NewRoomHandler(roomService)
+	carHandler := handlers.NewCarHandler(carService)
 	requestHandler := handlers.NewRequestHandler(requestService)
+	carRequestHandler := handlers.NewCarRequestHandler(carRequestService)
 	bookingHandler := handlers.NewBookingHandler(bookingService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	uploadHandler := handlers.NewUploadHandler(roomService)
@@ -68,6 +75,15 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 			auth.POST("/resend-login-otp", authHandler.ResendLoginOTP)
 		}
 
+		// // Cars (public endpoints)
+		// cars := v1.Group("/cars")
+		// {
+		// 	cars.GET("", carHandler.ListCars)
+		// 	cars.GET("/:id", carHandler.GetCar)
+		// 	cars.POST("/:id/availability", carHandler.CheckAvailability)
+		// 	cars.GET("/available", carHandler.GetAvailableCars)
+		// }
+
 		// ====================================================
 		// PROTECTED ROUTES (Require Authentication)
 		// ====================================================
@@ -88,12 +104,25 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 			protected.GET("/rooms/:id", roomHandler.GetRoom)
 			protected.POST("/rooms/:id/availability", roomHandler.CheckAvailability)
 
+			// Cars (read-only for all authenticated users)
+			protected.GET("/cars", carHandler.ListCars)
+			protected.GET("/cars/:id", carHandler.GetCar)
+			protected.POST("/cars/:id/availability", carHandler.CheckAvailability)
+			protected.GET("/cars/available", carHandler.GetAvailableCars)
+
 			// Room requests
 			protected.GET("/room-requests", requestHandler.ListRequests)
 			protected.POST("/room-requests", requestHandler.CreateRequest)
 			protected.GET("/room-requests/:id", requestHandler.GetRequest)
 			protected.PUT("/room-requests/:id", requestHandler.UpdateRequest)
 			protected.DELETE("/room-requests/:id", requestHandler.DeleteRequest)
+
+			// Car requests
+			protected.GET("/car-requests", carRequestHandler.ListCarRequests)
+			protected.POST("/car-requests", carRequestHandler.CreateCarRequest)
+			protected.GET("/car-requests/:id", carRequestHandler.GetCarRequest)
+			protected.PUT("/car-requests/:id", carRequestHandler.UpdateCarRequest)
+			protected.DELETE("/car-requests/:id", carRequestHandler.DeleteCarRequest)
 
 			// Bookings
 			protected.GET("/bookings", bookingHandler.ListBookings)
@@ -111,6 +140,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 
 			// Calendar
 			protected.GET("/calendar", bookingHandler.GetCalendar)
+			protected.GET("/car-calendar", carRequestHandler.GetCalendarCarRequests)
 
 			// ================================================
 			// ROOM ADMIN ROUTES
@@ -122,6 +152,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 				roomAdmin.PUT("/rooms/:id", roomHandler.UpdateRoom)
 				roomAdmin.DELETE("/rooms/:id", roomHandler.DeleteRoom)
 				roomAdmin.POST("/rooms/:id/image", uploadHandler.UploadRoomImage)
+
+				// Car management (room_admin only)
+				roomAdmin.POST("/cars", carHandler.CreateCar)
+				roomAdmin.PUT("/cars/:id", carHandler.UpdateCar)
+				roomAdmin.DELETE("/cars/:id", carHandler.DeleteCar)
+				roomAdmin.POST("/cars/:id/image", carHandler.UpdateCarImage)
 
 				roomAdmin.PUT("/users/:id", userHandler.UpdateUser)
 				roomAdmin.DELETE("/users/:id", userHandler.DeleteUser)
@@ -152,9 +188,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) *services.BookingService {
 				ga.POST("/room-requests/:id/reject", requestHandler.RejectRequest)
 				ga.GET("/room-requests/:id/available-rooms", requestHandler.GetAvailableRooms)
 				ga.DELETE("/bookings/:id", bookingHandler.CancelBooking)
+
+				// Car request management (GA only)
+				ga.POST("/car-requests/:id/approve", carRequestHandler.ApproveCarRequest)
+				ga.POST("/car-requests/:id/reject", carRequestHandler.RejectCarRequest)
+				ga.GET("/car-requests/:id/available-cars", carRequestHandler.GetAvailableCars)
 			}
 		}
+		return bookingService
 	}
-
-	return bookingService
 }

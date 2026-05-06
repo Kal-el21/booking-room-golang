@@ -14,6 +14,9 @@ const (
 	NotifReminder         NotificationType = "reminder"
 	NotifRoomChanged      NotificationType = "room_changed"
 	NotifNewRequest       NotificationType = "new_request"
+	NotifNewCarRequest    NotificationType = "new_car_request"
+	NotifCarBookingConfirmed NotificationType = "car_booking_confirmed"
+	NotifCarBookingRejected  NotificationType = "car_booking_rejected"
 )
 
 const (
