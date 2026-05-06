@@ -1,8 +1,10 @@
 package migrations
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/models"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/utils"
@@ -118,7 +120,8 @@ func joinColumns(columns []string) string {
 	return result
 }
 
-// SeedAdmin creates the initial admin user if it doesn't already exist
+// SeedAdmin creates the initial admin user if it doesn't already exist,
+// or updates existing admin to ensure AuthTypeLocal and required fields.
 func SeedAdmin(db *gorm.DB) error {
 	log.Println("🌱 Checking for admin user...")
 
@@ -127,31 +130,71 @@ func SeedAdmin(db *gorm.DB) error {
 	adminPassword := "rJsm8kFce4"
 	adminName := "Admin Indore"
 
-	var count int64
-	db.Model(&models.User{}).Where("email = ?", adminEmail).Count(&count)
-	if count > 0 {
-		log.Println("⚠️  Admin user already exists, skipping...")
-		return nil
-	}
-
+	// Hash password first
 	hashedPassword, err := utils.HashPassword(adminPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	admin := models.User{
-		Name:     adminName,
-		Email:    adminEmail,
-		Password: hashedPassword,
-		Role:     models.RoleRoomAdmin,
-		Division: &adminDivision,
-		IsActive: true,
+	now := time.Now()
+
+	// Check if admin already exists
+	var existingUser models.User
+	err = db.Where("email = ?", adminEmail).First(&existingUser).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Create new admin user
+			admin := models.User{
+				Name:            adminName,
+				Email:           adminEmail,
+				Password:        hashedPassword,
+				AuthType:        models.AuthTypeLocal,
+				Role:            models.RoleRoomAdmin,
+				Division:        &adminDivision,
+				IsActive:        true,
+				EmailVerifiedAt: &now,
+			}
+
+			if err := db.Create(&admin).Error; err != nil {
+				return fmt.Errorf("failed to create admin user: %w", err)
+			}
+
+			// Create default preferences for admin
+			preferences := models.GetDefaultPreferences(admin.ID)
+			if err := db.Create(&preferences).Error; err != nil {
+				log.Printf("Warning: failed to create preferences for admin: %v", err)
+			}
+
+			log.Println("✅ Admin user created successfully!")
+			return nil
+		}
+		return fmt.Errorf("failed to check admin existence: %w", err)
 	}
 
-	if err := db.Create(&admin).Error; err != nil {
-		return fmt.Errorf("failed to create admin user: %w", err)
+	// Admin exists — update to ensure correct configuration
+	updates := map[string]interface{}{
+		"password":          hashedPassword,
+		"is_active":         true,
+		"email_verified_at": now,
+		"role":              models.RoleRoomAdmin,
+		"auth_type":         models.AuthTypeLocal,
+		"name":              adminName,
+		"division":          &adminDivision,
 	}
 
-	log.Println("✅ Admin user created successfully!")
+	if err := db.Model(&existingUser).Updates(updates).Error; err != nil {
+		return fmt.Errorf("failed to update admin user: %w", err)
+	}
+
+	// Ensure preferences exist
+	var pref models.UserPreference
+	if err := db.Where("user_id = ?", existingUser.ID).First(&pref).Error; err != nil {
+		pref = models.GetDefaultPreferences(existingUser.ID)
+		if err := db.Create(&pref).Error; err != nil {
+			log.Printf("Warning: failed to create preferences for admin: %v", err)
+		}
+	}
+
+	log.Printf("✅ Admin user already existed — updated AuthType to 'local', reset password, ensured preferences")
 	return nil
 }

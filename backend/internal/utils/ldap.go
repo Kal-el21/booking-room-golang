@@ -93,9 +93,9 @@ func LDAPAuthenticate(username, password string) (*LDAPUserInfo, error) {
 	}
 
 	email := entry.GetAttributeValue(cfg.AttrEmail)
-	if email == "" {
+	if email == "" && cfg.DefaultEmailDomain != "" {
 		// Some AD setups store UPN as the mail attribute; fall back to
-		// username@domain if AttrEmail returns nothing.
+		// username@domain if AttrEmail returns nothing and DefaultEmailDomain is set.
 		email = fmt.Sprintf("%s@%s", username, cfg.DefaultEmailDomain)
 	}
 
