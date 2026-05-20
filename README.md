@@ -1,9 +1,10 @@
 # 🚪 Room Booking & Management System
 
-A professional, full-stack room booking application with automated approval workflows, real-time notifications, and multi-factor authentication.
+A professional, full-stack room booking application with automated approval workflows, real-time notifications, multi-factor authentication, and integrated vehicle tracking system.
 
 ## 🚀 Key Features
 
+### Room Booking
 - **🔐 Advanced Authentication:**
   - Classic JWT-based login & registration.
   - **Email Verification** via OTP for new accounts.
@@ -26,13 +27,47 @@ A professional, full-stack room booking application with automated approval work
   - User management (Profile updates, password resets, role management).
   - Avatar uploads for all users.
 
+### Vehicle Tracking (New)
+- **🚗 Car Fleet Management:**
+  - GA manages fleet with capacity, vehicle type, transmission, fuel type, and odometer tracking.
+  - Car images, garage location, and active/inactive status support.
+- **📋 Car Booking Lifecycle:**
+  - Users submit car requests → GA approves with car assignment → System creates `CarBooking` records.
+  - Full pickup/return lifecycle with odometer, fuel level, driver assignment, and snapshot history.
+  - New statuses: `confirmed` → `picked_up` → `in_use` → `returned` / `late_return` / `cancelled`.
+- **⏰ Automated Scheduler:**
+  - Background job runs every 5 minutes to auto-pickup bookings whose start time has passed.
+  - Auto-marks as `late_return` if the entire booking window passed without pickup.
+  - Notifies GA via SSE on all automated transitions.
+- **🔄 Conflict Detection:**
+  - On approval, system validates no overlapping active bookings (`confirmed`, `picked_up`, `in_use`) exist for the same car and time.
+  - On reject, conflicts are surfaced to GA for manual review.
+- **📊 Fleet Status Dashboard:**
+  - GA dashboard shows per-car active booking, fleet-wide counts, and lifecycle-phase breakdown.
+
+## 🗂️ User Roles
+
+| Role | Description | Permissions |
+|------|-------------|-------------|
+| `user` | Regular Employee | View rooms/cars, create/update/cancel own requests, manage own bookings, update own profile/preferences |
+| `driver` | Designated Driver | View own assigned car bookings list |
+| `GA` | General Affairs | All `user` perms + View/approve/reject all requests, manage car bookings (pickup/return/override), assign/unassign drivers, view fleet status |
+| `room_admin` | Room Administrator | All `GA` perms + Full CRUD for rooms, users, and system settings |
+
+## 🗺️ Module Map
+
+| Area | Models | Handlers | Services | Repositories |
+|------|--------|----------|----------|--------------|
+| Room Booking | `User`, `Room`, `RoomRequest`, `RoomBooking`, `Notification`, `OTP`, `SystemSetting`, `AuditLog` | `auth_handler`, `room_handler`, `request_handler`, `booking_handler`, `notification_handler`, `system_setting_handler` | `AuthService`, `BookingService`, `NotificationService`, `OTPService`, `SystemSettingService` | `user_repo`, `room_repo`, `request_repo`, `booking_repo`, `notification_repo`, `otp_repo`, `system_setting_repo` |
+| Vehicle Tracking | `Car`, `CarRequest`, `CarBooking` | `car_handler`, `car_request_handler`, `car_booking_handler` | `CarService`, `CarRequestService`, `CarBookingService`, `CarSchedulerService`, `CarConflictService` | `car_repo`, `car_request_repo`, `car_booking_repo` |
+
 ## 🛠️ Tech Stack
 
-- **Backend:** [Go (Golang)](https://go.dev/) with [Gin](https://gin-gonic.com/), [GORM](https://gorm.io/), and PostgreSQL.
-- **Frontend:** [React](https://reactjs.org/) with TypeScript, [Vite](https://vitejs.dev/), and [TailwindCSS](https://tailwindcss.com/).
-- **Real-time:** Server-Sent Events (SSE).
-- **Storage:** Local filesystem for avatars and room images.
-- **Deployment:** Docker & Docker Compose.
+- **Backend:** Go (Golang) with Gin, GORM, PostgreSQL
+- **Frontend:** React + TypeScript, Vite, TailwindCSS
+- **Real-time:** Server-Sent Events (SSE)
+- **Storage:** Local filesystem
+- **Deployment:** Docker & Docker Compose
 
 ## 📂 Project Structure
 
@@ -116,9 +151,10 @@ For detailed API usage and system internals, please refer to:
 
 | Role | Description |
 |------|-------------|
-| `user` | Can view rooms, create booking requests, and manage their profile. |
-| `GA` | General Affairs - reviews and approves/rejects booking requests. |
-| `room_admin` | Full system control - manages rooms, users, and global settings. |
+| `user` | Can view rooms and cars, create booking requests, and manage their own profile and preferences. |
+| `driver` | Can view all car bookings assigned to them. |
+| `GA` | General Affairs — reviews and approves/rejects booking requests, manages car fleet (pickup/return/status overrides), assigns/unassigns drivers, and views fleet status. |
+| `room_admin` | Full system control — manages rooms, users, cars, system settings, and all GA features. |
 
 ## 📄 License
 This project is licensed under the MIT License.

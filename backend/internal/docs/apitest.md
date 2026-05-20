@@ -1072,11 +1072,82 @@ Authorization: Bearer {{admin_token}}
 
 ---
 
-## 🚗 10. Car Booking API
+## 🚗 10. Car Booking / Vehicle Tracking API
 
-New car booking system - separate from room booking.
+Vehicle tracking system built alongside the room booking system. Uses separate models (`Car`, `CarRequest`, `CarBooking`).
 
-### 10.1 Create Car Request
+### 10.1 Car Model — Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | uint | Primary key |
+| `car_name` | string | Display name (e.g. "Toyota Innova") |
+| `plate_number` | string\* | Vehicle plate number (partial unique) |
+| `brand` | string\* | Manufacturer (e.g. "Toyota") |
+| `model` | string\* | Model name (e.g. "Innova 2.0") |
+| `vehicle_type` | string\* | sedan / SUV / van / etc. |
+| `transmission` | string\* | manual / automatic |
+| `fuel_type` | string\* | gasoline / diesel / electric / hybrid |
+| `capacity` | int | Passenger capacity |
+| `garage_location` | string\* | Where the car is parked |
+| `status` | enum | `available` / `occupied` / `maintenance` |
+| `is_active` | bool | Soft-delete flag |
+| `current_odometer` | int\* | Latest odometer reading (km) |
+| `created_by` | uint | GA who created the record |
+
+\* = nullable
+
+---
+
+### 10.2 CarRequest — Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | uint | Primary key |
+| `user_id` | uint | Requester |
+| `required_capacity` | int | Min passenger seats needed |
+| `purpose` | string | Trip purpose |
+| `booking_date` | date | Trip start date |
+| `end_date` | date\* | Last day of trip (multi-day) |
+| `start_time` | time | Daily start hour |
+| `end_time` | time | Daily end hour |
+| `is_recurring` | bool | Recurring trip |
+| `recurring_type` | string\* | `daily` / `weekly` / `monthly` |
+| `recurring_days` | string\* | CSV day numbers (1=Mon … 7=Sun) |
+| `recurring_end_date` | date\* | Trip ends on this date |
+| `has_consumption` | bool | Needs fuel cost coverage |
+| `consumption_note` | string\* | Consumption details |
+| `status` | enum | `pending` / `approved` / `rejected` / `cancelled` |
+
+---
+
+### 10.3 CarBooking (lifecycle) — Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | uint | Primary key |
+| `request_id` | uint | FK to `CarRequest` |
+| `car_id` | uint | FK to `Car` |
+| `booked_by` | uint | GA who approved/created |
+| `driver_id` | uint\* | FK to `User` where role = `driver` |
+| `driver_name_snapshot` | string\* | Snapshot at booking time |
+| `departure_date` | date | Trip day (renamed from `booking_date`) |
+| `start_time` | time | Daily start |
+| `end_time` | time | Daily end |
+| `status` | enum | `confirmed` → `picked_up` → `in_use` → `returned` / `late_return` / `cancelled` |
+| `plate_number_snapshot` | string\* | Plate frozen at booking creation |
+| `car_name_snapshot` | string\* | Name frozen at booking creation |
+| `pickup_location` | string\* | Where the driver picked up the car |
+| `picked_up_at` | time\* | Timestamp of pickup |
+| `returned_at` | time\* | Timestamp of return |
+| `start_odometer` | int\* | Odometer reading at pickup |
+| `end_odometer` | int\* | Odometer reading at return |
+| `fuel_level_return` | int\* | Fuel level % at return (0-100) |
+| `return_notes` | string\* | Notes from driver/GA at return |
+
+---
+
+### 10.4 Create Car Request
 ```http
 POST {{base_url}}/api/v1/car-requests
 Content-Type: application/json
@@ -1084,12 +1155,11 @@ Authorization: Bearer {{user_token}}
 
 {
   "required_capacity": 5,
-  "purpose": "Client visit to headquarters",
-  "booking_date": "2026-05-10",
-  "start_time": "09:00",
+  "purpose": "Client site visit",
+  "booking_date": "2026-06-01",
+  "start_time": "08:00",
   "end_time": "17:00",
-  "has_consumption": false,
-  "is_recurring": false
+  "has_consumption": false
 }
 ```
 
@@ -1101,39 +1171,24 @@ Authorization: Bearer {{user_token}}
   "data": {
     "id": 1,
     "user_id": 1,
-    "user_name": "John Doe",
     "required_capacity": 5,
-    "purpose": "Client visit",
-    "booking_date": "2026-05-10",
-    "start_time": "09:00",
-    "end_time": "17:00",
+    "purpose": "Client site visit",
+    "booking_date": "2026-06-01",
+    "start_time": "08:00:00",
+    "end_time": "17:00:00",
     "status": "pending",
-    "has_consumption": false,
-    "is_recurring": false
+    "is_recurring": false,
+    "created_at": "2026-05-18T..."
   }
 }
 ```
 
-**For Multi-Day (add end_date):**
-```json
-{
-  "end_date": "2026-05-12"
-}
-```
-
-**For Recurring (weekly on Mon,Wed,Fri for 1 month):**
-```json
-{
-  "is_recurring": true,
-  "recurring_type": "weekly",
-  "recurring_days": "1,3,5",
-  "recurring_end_date": "2026-06-10"
-}
-```
+**Multi-day** — add `"end_date": "2026-06-03"`
+**Recurring** — add `"is_recurring": true`, `"recurring_type": "weekly"`, `"recurring_days": "1,3,5"`
 
 ---
 
-### 10.2 List Car Requests (User)
+### 10.5 List Car Requests
 ```http
 GET {{base_url}}/api/v1/car-requests?page=1&page_size=10&status=pending
 Authorization: Bearer {{user_token}}
@@ -1141,147 +1196,242 @@ Authorization: Bearer {{user_token}}
 
 ---
 
-### 10.3 Update Car Request (User - Pending Only)
+### 10.6 Approve Car Request (GA)
 ```http
-PUT {{base_url}}/api/v1/car-requests/1
-Authorization: Bearer {{user_token}}
-Content-Type: application/json
-
-{
-  "required_capacity": 7,
-  "purpose": "Updated: Client visit with team",
-  "start_time": "08:00",
-  "end_time": "18:00"
-}
-```
-
----
-
-### 10.4 Delete Car Request (User - Pending Only)
-```http
-DELETE {{base_url}}/api/v1/car-requests/1
-Authorization: Bearer {{user_token}}
-```
-
----
-
-### 10.5 Approve Car Request (GA)
-```http
-POST {{base_url}}/api/v1/car-requests/1/approve
+POST {{base_url}}/api/v1/car-requests/{{request_id}}/approve
 Authorization: Bearer {{ga_token}}
 Content-Type: application/json
 
 {
-  "car_id": 2,
-  "consumption_note": "Car available, no consumption needed"
+  "car_id": 2
 }
 ```
 
-**Response:** Creates CarBooking record(s) automatically
+Creates one `CarBooking` per trip date. Each booking gets:
+- `plate_number_snapshot` and `car_name_snapshot` from the selected `Car`.
+- Status `confirmed`.
+
+---
+
+### 10.7 Reject Car Request (GA)
+```http
+POST {{base_url}}/api/v1/car-requests/{{request_id}}/reject
+Authorization: Bearer {{ga_token}}
+Content-Type: application/json
+
+{
+  "reason": "No car available on that date"
+}
+```
+
+---
+
+### 10.8 Get Available Cars for Request (GA)
+```http
+GET {{base_url}}/api/v1/car-requests/{{request_id}}/available-cars
+Authorization: Bearer {{ga_token}}
+```
+
+---
+
+### 10.9 Car Calendar
+```http
+GET {{base_url}}/api/v1/car-calendar?start_date=2026-06-01&end_date=2026-06-30&car_id=2
+Authorization: Bearer {{user_token}}
+```
+
+---
+
+### 10.10 Car Management (Room Admin)
+```http
+GET    {{base_url}}/api/v1/cars
+GET    {{base_url}}/api/v1/cars/{{car_id}}
+POST   {{base_url}}/api/v1/cars            (room_admin)
+PUT    {{base_url}}/api/v1/cars/{{car_id}}  (room_admin)
+DELETE {{base_url}}/api/v1/cars/{{car_id}}  (room_admin)
+POST   {{base_url}}/api/v1/cars/{{car_id}}/image  (multipart, room_admin)
+POST   {{base_url}}/api/v1/cars/{{car_id}}/availability  (check for overlapping bookings)
+GET    {{base_url}}/api/v1/cars/available?capacity=5&booking_date=2026-06-01&start_time=08:00&end_time=17:00
+```
+
+---
+
+### 10.11 List All Car Bookings (GA)
+```http
+GET {{base_url}}/api/v1/car-bookings?page=1&page_size=10&status=confirmed&car_id=2&booking_date=2026-06-01
+Authorization: Bearer {{ga_token}}
+```
+
+Query params: `page`, `page_size`, `status`, `car_id`, `booking_date`
+
+---
+
+### 10.12 Get Car Booking Detail (Authenticated)
+```http
+GET {{base_url}}/api/v1/car-bookings/{{booking_id}}
+Authorization: Bearer {{user_token}}
+```
+
+---
+
+### 10.13 Pick Up Booking (GA)
+Transitions status from `confirmed` → `picked_up`. Snapshots plate number, car name, and pickup timestamp.
+
+```http
+POST {{base_url}}/api/v1/car-bookings/{{booking_id}}/pickup
+Authorization: Bearer {{ga_token}}
+Content-Type: application/json
+
+{
+  "driver_id": 3,
+  "pickup_location": "Main Garage",
+  "start_odometer": 45000
+}
+```
+
+> `driver_id` is optional; if omitted the booking has no driver assignment.
+
+---
+
+### 10.14 Return Booking (GA)
+Transitions `picked_up` or `in_use` → `returned` (or `late_return` if past `end_time`). Updates `Car.current_odometer` automatically.
+
+```http
+POST {{base_url}}/api/v1/car-bookings/{{booking_id}}/return
+Authorization: Bearer {{ga_token}}
+Content-Type: application/json
+
+{
+  "end_odometer": 45500,
+  "fuel_level_return": 70,
+  "return_notes": "Minor scratch on rear bumper"
+}
+```
+
+---
+
+### 10.15 Override Booking Status (GA)
+Manual status override for edge cases.
+
+```http
+PUT {{base_url}}/api/v1/car-bookings/{{booking_id}}/status
+Authorization: Bearer {{ga_token}}
+Content-Type: application/json
+
+{
+  "status": "late_return"
+}
+```
+
+Allowed GA overrides:
+- `late_return` → `returned` (forgive driver)
+- `confirmed` → `cancelled` (manual cancel)
+- `picked_up` → `confirmed` (reset pickup)
+- `in_use` → `confirmed` (reset in-use)
+
+Other transitions follow the normal state machine.
+
+---
+
+### 10.16 Assign Driver to Booking (GA)
+```http
+PUT {{base_url}}/api/v1/car-bookings/{{booking_id}}/driver
+Authorization: Bearer {{ga_token}}
+Content-Type: application/json
+
+{
+  "driver_id": 3
+}
+```
+
+Validates that user #3 has `role = 'driver'`. Sends SSE notification to the driver.
+
+---
+
+### 10.17 Unassign Driver from Booking (GA)
+```http
+DELETE {{base_url}}/api/v1/car-bookings/{{booking_id}}/driver
+Authorization: Bearer {{ga_token}}
+```
+
+---
+
+### 10.18 Fleet Status Dashboard (GA)
+```http
+GET {{base_url}}/api/v1/admin/car-fleet-status
+Authorization: Bearer {{ga_token}}
+```
+
+**Response:**
 ```json
 {
   "success": true,
-  "message": "Car request approved successfully",
+  "message": "Fleet status retrieved successfully",
   "data": {
-    "id": 1,
-    "car_id": 2,
-    "car_name": "Toyota Innova",
-    "booking_date": "2026-05-10",
-    "start_time": "09:00",
-    "end_time": "17:00",
-    "status": "confirmed"
+    "summary": {
+      "total_cars": 5,
+      "available_cars": 3,
+      "occupied_cars": 1,
+      "maintenance_cars": 1,
+      "confirmed_bookings": 2,
+      "picked_up_bookings": 0,
+      "in_use_bookings": 1
+    },
+    "car_status": [
+      {
+        "car_id": 2,
+        "car_name": "Toyota Innova",
+        "plate_num": "B1234ABC",
+        "car_status": "occupied",
+        "current_booking_id": 7,
+        "current_booking_status": "picked_up"
+      }
+    ]
   }
 }
 ```
 
 ---
 
-### 10.6 Reject Car Request (GA)
+### 10.19 Driver Bookings (Driver Only)
 ```http
-POST {{base_url}}/api/v1/car-requests/1/reject
-Authorization: Bearer {{ga_token}}
-Content-Type: application/json
-
-{
-  "reason": "No car available with required capacity"
-}
+GET {{base_url}}/api/v1/driver/bookings
+Authorization: Bearer {{driver_token}}
 ```
+
+Returns all `confirmed`, `picked_up`, and `in_use` bookings assigned to the logged-in driver.
 
 ---
 
-### 10.7 Get Available Cars for Request (GA)
-```http
-GET {{base_url}}/api/v1/car-requests/1/available-cars
-Authorization: Bearer {{ga_token}}
+### 10.20 Car Pickup/Return Lifecycle — State Machine
+
+```
+confirmed ──(GA pickup)──▶ picked_up ──(driver starts trip)──▶ in_use
+     ▲                                                              │
+     │                                                      (GA return)
+     │                                                              │
+     └──────────(GA return)──▶ returned                    returned◀──┘
+                     └──▶ late_return  ←─ late return (auto or manual)
+                     └──▶ cancelled
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Available cars retrieved successfully",
-  "data": [
-    {
-      "id": 2,
-      "car_name": "Toyota Innova",
-      "capacity": 7,
-      "location": "Parking Lot A",
-      "status": "available"
-    }
-  ]
-}
-```
+- Terminal states (returned, late_return, cancelled) cannot be reverted via normal transitions.
+- GA can force `late_return → returned` via the override endpoint.
+- The **scheduler** auto-pickups confirmed bookings whose `start_time` has passed, and auto-marks as `late_return` if the full booking window has elapsed.
 
 ---
 
-### 10.8 Car Calendar (User & GA)
+### 10.21 Car Fleet — CRUD (Room Admin)
+
 ```http
-GET {{base_url}}/api/v1/car-calendar?start_date=2026-05-01&end_date=2026-05-31&car_id=2
-Authorization: Bearer {{user_token}}
+POST   {{base_url}}/api/v1/cars
+PUT    {{base_url}}/api/v1/cars/{{car_id}}
+DELETE {{base_url}}/api/v1/cars/{{car_id}}
+POST   {{base_url}}/api/v1/cars/{{car_id}}/image   (multipart)
 ```
 
-**Parameters:**
-- `start_date` (required): Start date YYYY-MM-DD
-- `end_date` (required): End date YYYY-MM-DD
-- `car_id` (optional): Filter by specific car
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Car calendar retrieved successfully",
-  "data": [
-    {
-      "id": 1,
-      "type": "car_booking",
-      "title": "Toyota Innova",
-      "start": "2026-05-10T09:00:00",
-      "end": "2026-05-10T17:00:00",
-      "car_id": 2,
-      "car_name": "Toyota Innova",
-      "status": "confirmed",
-      "user_name": "John Doe",
-      "purpose": "Client visit"
-    },
-    {
-      "id": 3,
-      "type": "car_request",
-      "title": "Team Offsite",
-      "start": "2026-05-15T10:00:00",
-      "end": "2026-05-15T16:00:00",
-      "car_id": 0,
-      "car_name": "",
-      "status": "pending",
-      "user_name": "Jane Smith",
-      "purpose": "Team Offsite"
-    }
-  ]
-}
-```
-
-**Type Legend:**
-- `car_booking` = Confirmed booking (has car assigned)
-- `car_request` = Pending request (no car assigned yet)
+Car create/update body fields:
+`car_name`, `plate_number`, `brand`, `model`, `vehicle_type`, `transmission`, `fuel_type`, `capacity`, `garage_location`, `description`, `is_active`
 
 ---
 
@@ -1290,8 +1440,8 @@ Authorization: Bearer {{user_token}}
 ### Recommended Order:
 
 1. **Health Check** → Verify server is running
-2. **Register** 3 users (user, room_admin, GA)
-3. **Login** all 3 users → Save tokens
+2. **Register** 4 users (user, **driver**, GA, room_admin)
+3. **Login** all 4 users → Save tokens
 4. **Login as Room Admin** → Create 2-3 rooms
 5. **Login as Room Admin** → Create 2-3 cars (via `/cars`)
 6. **Login as User** → Create room requests:
@@ -1311,6 +1461,12 @@ Authorization: Bearer {{user_token}}
 14. **User** → Connect to SSE stream (Browser/cURL)
 15. **All** → View room calendar with bookings
 16. **All** → View car calendar with bookings
+17. **GA** → Record pickup for a confirmed car booking
+18. **GA** → Record return for a picked-up booking
+19. **GA** → Assign/unassign driver to a car booking
+20. **GA** → Override booking status (e.g. late_return → returned)
+21. **GA** → View fleet status dashboard (`/admin/car-fleet-status`)
+22. **Driver** → View own car bookings (`/driver/bookings`)
 
 ---
 

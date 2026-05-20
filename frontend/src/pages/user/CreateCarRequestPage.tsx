@@ -20,7 +20,7 @@ interface FormState {
   notes: string;
   has_consumption: boolean;
   consumption_note: string;
-  booking_date: string;
+  departure_date: string;
   end_date: string;
   start_time: string;
   end_time: string;
@@ -56,7 +56,7 @@ export const CreateCarRequestPage = () => {
     notes: '',
     has_consumption: false,
     consumption_note: '',
-    booking_date: format(new Date(), 'yyyy-MM-dd'),
+    departure_date: format(new Date(), 'yyyy-MM-dd'),
     end_date: '',
     start_time: '09:00',
     end_time: '17:00',
@@ -75,7 +75,7 @@ export const CreateCarRequestPage = () => {
       notes: formData.notes || undefined,
       has_consumption: formData.has_consumption,
       consumption_note: formData.consumption_note || undefined,
-      booking_date: formData.booking_date,
+      departure_date: formData.departure_date,
       end_date: bookingType === 'multi' ? formData.end_date : undefined,
       start_time: formData.start_time,
       end_time: formData.end_time,
@@ -102,7 +102,7 @@ export const CreateCarRequestPage = () => {
     }));
   };
 
-  const minEndDate = bookingType === 'multi' ? formData.booking_date : undefined;
+  const minEndDate = bookingType === 'multi' ? formData.departure_date : undefined;
 
   return (
     <div className="space-y-6 p-6">
@@ -185,12 +185,12 @@ export const CreateCarRequestPage = () => {
             {/* Date & Time */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="booking_date">Start Date *</Label>
+                <Label htmlFor="departure_date">Departure Date *</Label>
                 <Input
-                  id="booking_date"
+                  id="departure_date"
                   type="date"
-                  value={formData.booking_date}
-                  onChange={(e) => setFormData({ ...formData, booking_date: e.target.value })}
+                  value={formData.departure_date}
+                  onChange={(e) => setFormData({ ...formData, departure_date: e.target.value })}
                   min={format(new Date(), 'yyyy-MM-dd')}
                   required
                 />
@@ -216,7 +216,7 @@ export const CreateCarRequestPage = () => {
                     type="date"
                     value={formData.recurring_end_date}
                     onChange={(e) => setFormData({ ...formData, recurring_end_date: e.target.value })}
-                    min={formData.booking_date}
+                    min={formData.departure_date}
                     required={bookingType === 'recurring'}
                   />
                 </div>

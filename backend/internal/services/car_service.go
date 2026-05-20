@@ -51,13 +51,13 @@ func (s *CarService) CreateCar(input CreateCarInput, createdBy uint) (*models.Ca
 	}
 
 	car := &models.Car{
-		CarName:    input.CarName,
-		Capacity:   input.Capacity,
-		Location:   input.Location,
-		Description: input.Description,
-		Status:     status,
-		IsActive:   true,
-		CreatedBy:  createdBy,
+		CarName:        input.CarName,
+		SeatCapacity:   input.Capacity,
+		GarageLocation: input.Location,
+		Description:    input.Description,
+		Status:         status,
+		IsActive:       true,
+		CreatedBy:      createdBy,
 	}
 
 	if err := s.carRepo.Create(car); err != nil {
@@ -84,10 +84,10 @@ func (s *CarService) UpdateCar(id uint, input UpdateCarInput) (*models.Car, erro
 		car.CarName = *input.CarName
 	}
 	if input.Capacity != nil {
-		car.Capacity = *input.Capacity
+		car.SeatCapacity = *input.Capacity
 	}
 	if input.Location != nil {
-		car.Location = *input.Location
+		car.GarageLocation = *input.Location
 	}
 	if input.Description != nil {
 		car.Description = input.Description

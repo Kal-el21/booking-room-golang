@@ -9,28 +9,52 @@ import (
 type CarBookingStatus string
 
 const (
-	CarBookingConfirmed CarBookingStatus = "confirmed"
-	CarBookingCancelled CarBookingStatus = "cancelled"
-	CarBookingCompleted CarBookingStatus = "completed"
+	CarBookingConfirmed  CarBookingStatus = "confirmed"
+	CarBookingPickedUp   CarBookingStatus = "picked_up"   // NEW
+	CarBookingInUse      CarBookingStatus = "in_use"      // NEW
+	CarBookingReturned   CarBookingStatus = "returned"    // NEW
+	CarBookingLateReturn CarBookingStatus = "late_return" // NEW
+	CarBookingCancelled  CarBookingStatus = "cancelled"
+	CarBookingCompleted  CarBookingStatus = "completed"
 )
 
 type CarBooking struct {
-	ID          uint           `gorm:"primaryKey;autoIncrement" json:"id"`
-	RequestID   uint           `gorm:"not null;index" json:"request_id"` // Changed from unique to index (multiple bookings per request)
-	CarID       uint           `gorm:"not null;index" json:"car_id"`
-	BookedBy    uint           `gorm:"not null" json:"booked_by"` // GA who created the booking
-	BookingDate time.Time      `gorm:"type:date;not null;index" json:"booking_date"`
-	StartTime   time.Time      `gorm:"type:time;not null" json:"start_time"`
-	EndTime     time.Time      `gorm:"type:time;not null" json:"end_time"`
+	ID                  uint           `gorm:"primaryKey;autoIncrement" json:"id"`
+	RequestID           uint           `gorm:"not null;index" json:"request_id"`
+	CarID               uint           `gorm:"not null;index" json:"car_id"`
+	BookedBy            uint           `gorm:"not null" json:"booked_by"`
+	DepartureDate       time.Time      `gorm:"type:date;not null;index" json:"departure_date"`
+	ReturnDate          *time.Time     `gorm:"type:date" json:"return_date,omitempty"`
+	StartTime           time.Time      `gorm:"type:time;not null" json:"start_time"`
+	EndTime             time.Time      `gorm:"type:time;not null" json:"end_time"`
+
+	// NEW: Driver & Snapshot
+	DriverID           *uint      `gorm:"index" json:"driver_id,omitempty"`
+	DriverNameSnapshot *string    `gorm:"type:varchar(255)" json:"driver_name_snapshot,omitempty"`
+	PlateNumberSnapshot *string   `gorm:"type:varchar(50)" json:"plate_number_snapshot,omitempty"`
+	CarNameSnapshot     *string   `gorm:"type:varchar(255)" json:"car_name_snapshot,omitempty"`
+
+	// NEW: Pickup info
+	PickupLocation *string    `gorm:"type:varchar(255)" json:"pickup_location,omitempty"`
+	PickedUpAt     *time.Time `json:"picked_up_at,omitempty"`
+
+	// NEW: Return info
+	ReturnedAt      *time.Time `json:"returned_at,omitempty"`
+	StartOdometer   *int      `json:"start_odometer,omitempty"`
+	EndOdometer     *int      `json:"end_odometer,omitempty"`
+	FuelLevelReturn *int      `gorm:"check:fuel_level_return BETWEEN 0 AND 100" json:"fuel_level_return,omitempty"`
+	ReturnNotes     *string   `gorm:"type:text" json:"return_notes,omitempty"`
+
 	Status      CarBookingStatus `gorm:"type:varchar(50);not null;default:'confirmed'" json:"status"`
-	CreatedAt   time.Time      `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt   time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	CreatedAt   time.Time        `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt   time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relationships
-	Request               CarRequest            `gorm:"foreignKey:RequestID" json:"request,omitempty"`
-	Car                   Car                   `gorm:"foreignKey:CarID" json:"car,omitempty"`
-	BookedByUser          User                   `gorm:"foreignKey:BookedBy" json:"booked_by_user,omitempty"`
+	Request   CarRequest            `gorm:"foreignKey:RequestID" json:"request,omitempty"`
+	Car       Car                   `gorm:"foreignKey:CarID" json:"car,omitempty"`
+	BookedByUser User               `gorm:"foreignKey:BookedBy" json:"booked_by_user,omitempty"`
+	Driver    *User                 `gorm:"foreignKey:DriverID" json:"driver,omitempty"`
 	Notifications         []Notification         `gorm:"foreignKey:BookingID" json:"notifications,omitempty"`
 	NotificationSchedules []NotificationSchedule `gorm:"foreignKey:BookingID" json:"notification_schedules,omitempty"`
 }
@@ -45,6 +69,26 @@ func (b *CarBooking) IsConfirmed() bool {
 	return b.Status == CarBookingConfirmed
 }
 
+// IsPickedUp checks if booking is picked up
+func (b *CarBooking) IsPickedUp() bool {
+	return b.Status == CarBookingPickedUp
+}
+
+// IsInUse checks if booking is in use
+func (b *CarBooking) IsInUse() bool {
+	return b.Status == CarBookingInUse
+}
+
+// IsReturned checks if booking is returned
+func (b *CarBooking) IsReturned() bool {
+	return b.Status == CarBookingReturned
+}
+
+// IsLateReturn checks if booking is late return
+func (b *CarBooking) IsLateReturn() bool {
+	return b.Status == CarBookingLateReturn
+}
+
 // IsCancelled checks if booking is cancelled
 func (b *CarBooking) IsCancelled() bool {
 	return b.Status == CarBookingCancelled
@@ -55,22 +99,42 @@ func (b *CarBooking) IsCompleted() bool {
 	return b.Status == CarBookingCompleted
 }
 
+// IsActive checks if booking is currently active (picked up or in use)
+func (b *CarBooking) IsActive() bool {
+	return b.Status == CarBookingPickedUp || b.Status == CarBookingInUse
+}
+
+// CanTransitionTo validates state machine transitions
+func (b *CarBooking) CanTransitionTo(newStatus CarBookingStatus) bool {
+	switch b.Status {
+	case CarBookingConfirmed:
+		return newStatus == CarBookingPickedUp || newStatus == CarBookingCancelled
+	case CarBookingPickedUp:
+		return newStatus == CarBookingInUse || newStatus == CarBookingReturned || newStatus == CarBookingLateReturn
+	case CarBookingInUse:
+		return newStatus == CarBookingReturned || newStatus == CarBookingLateReturn
+	case CarBookingReturned, CarBookingLateReturn, CarBookingCancelled:
+		return false // Terminal states
+	}
+	return false
+}
+
 // CanBeCancelled checks if booking can be cancelled
 func (b *CarBooking) CanBeCancelled() bool {
-	return b.Status == CarBookingConfirmed && time.Now().Before(b.BookingDate)
+	return b.Status == CarBookingConfirmed && time.Now().Before(b.DepartureDate)
 }
 
 // IsUpcoming checks if booking is in the future
 func (b *CarBooking) IsUpcoming() bool {
 	now := time.Now()
 	bookingDateTime := time.Date(
-		b.BookingDate.Year(),
-		b.BookingDate.Month(),
-		b.BookingDate.Day(),
+		b.DepartureDate.Year(),
+		b.DepartureDate.Month(),
+		b.DepartureDate.Day(),
 		b.StartTime.Hour(),
 		b.StartTime.Minute(),
 		0, 0,
-		b.BookingDate.Location(),
+		b.DepartureDate.Location(),
 	)
 	return bookingDateTime.After(now)
 }
@@ -79,57 +143,109 @@ func (b *CarBooking) IsUpcoming() bool {
 func (b *CarBooking) IsOngoing() bool {
 	now := time.Now()
 	startDateTime := time.Date(
-		b.BookingDate.Year(),
-		b.BookingDate.Month(),
-		b.BookingDate.Day(),
+		b.DepartureDate.Year(),
+		b.DepartureDate.Month(),
+		b.DepartureDate.Day(),
 		b.StartTime.Hour(),
 		b.StartTime.Minute(),
 		0, 0,
-		b.BookingDate.Location(),
+		b.DepartureDate.Location(),
 	)
 	endDateTime := time.Date(
-		b.BookingDate.Year(),
-		b.BookingDate.Month(),
-		b.BookingDate.Day(),
+		b.DepartureDate.Year(),
+		b.DepartureDate.Month(),
+		b.DepartureDate.Day(),
 		b.EndTime.Hour(),
 		b.EndTime.Minute(),
 		0, 0,
-		b.BookingDate.Location(),
+		b.DepartureDate.Location(),
 	)
 	return now.After(startDateTime) && now.Before(endDateTime)
 }
 
+// Helper methods for snapshot data
+// GetDriverName returns driver name from snapshot or relationship
+func (b *CarBooking) GetDriverName() string {
+	if b.DriverNameSnapshot != nil && *b.DriverNameSnapshot != "" {
+		return *b.DriverNameSnapshot
+	}
+	if b.Driver != nil && b.Driver.ID != 0 {
+		return b.Driver.Name
+	}
+	return ""
+}
+
+// GetPlateNumber returns plate number from snapshot or car
+func (b *CarBooking) GetPlateNumber() string {
+	if b.PlateNumberSnapshot != nil && *b.PlateNumberSnapshot != "" {
+		return *b.PlateNumberSnapshot
+	}
+	if b.Car.PlateNumber != nil && *b.Car.PlateNumber != "" {
+		return *b.Car.PlateNumber
+	}
+	return ""
+}
+
 // CarBookingResponse for API responses
 type CarBookingResponse struct {
-	ID           uint          `json:"id"`
-	RequestID    uint          `json:"request_id"`
-	CarID        uint          `json:"car_id"`
-	CarName      string        `json:"car_name"`
-	Car          *CarResponse  `json:"car,omitempty"`
-	BookedBy     uint          `json:"booked_by"`
-	BookedByUser *UserResponse `json:"booked_by_user,omitempty"`
-	BookingDate  string        `json:"booking_date"` // Format: YYYY-MM-DD
-	StartTime    string        `json:"start_time"`   // Format: HH:MM
-	EndTime      string        `json:"end_time"`     // Format: HH:MM
-	Status       CarBookingStatus `json:"status"`
-	CreatedAt    time.Time     `json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at"`
+	ID                 uint          `json:"id"`
+	RequestID          uint          `json:"request_id"`
+	CarID              uint          `json:"car_id"`
+	CarName            string        `json:"car_name"`
+	Car                *CarResponse  `json:"car,omitempty"`
+	DriverID           *uint         `json:"driver_id,omitempty"`
+	DriverName         string        `json:"driver_name,omitempty"`
+	Driver             *UserResponse `json:"driver,omitempty"`
+	PlateNumber        string        `json:"plate_number,omitempty"`
+	DepartureDate      string        `json:"departure_date"`
+	ReturnDate         *string       `json:"return_date,omitempty"`
+	PickupLocation     *string       `json:"pickup_location,omitempty"`
+	PickedUpAt         *time.Time    `json:"picked_up_at,omitempty"`
+	ReturnedAt         *time.Time    `json:"returned_at,omitempty"`
+	StartOdometer      *int          `json:"start_odometer,omitempty"`
+	EndOdometer        *int          `json:"end_odometer,omitempty"`
+	FuelLevelReturn    *int          `json:"fuel_level_return,omitempty"`
+	ReturnNotes        *string       `json:"return_notes,omitempty"`
+	BookedBy           uint          `json:"booked_by"`
+	BookedByUser       *UserResponse `json:"booked_by_user,omitempty"`
+	StartTime          string        `json:"start_time"`
+	EndTime            string        `json:"end_time"`
+	Status             CarBookingStatus `json:"status"`
+	CreatedAt          time.Time     `json:"created_at"`
+	UpdatedAt          time.Time     `json:"updated_at"`
 }
 
 // ToResponse converts CarBooking to CarBookingResponse
 func (b *CarBooking) ToResponse() CarBookingResponse {
+	var returnDateStr *string
+	if b.ReturnDate != nil {
+		s := b.ReturnDate.Format("2006-01-02")
+		returnDateStr = &s
+	}
+
 	response := CarBookingResponse{
-		ID:          b.ID,
-		RequestID:   b.RequestID,
-		CarID:       b.CarID,
-		CarName:     b.Car.CarName,
-		BookedBy:    b.BookedBy,
-		BookingDate: b.BookingDate.Format("2006-01-02"),
-		StartTime:   b.StartTime.Format("15:04"),
-		EndTime:     b.EndTime.Format("15:04"),
-		Status:      b.Status,
-		CreatedAt:   b.CreatedAt,
-		UpdatedAt:   b.UpdatedAt,
+		ID:             b.ID,
+		RequestID:      b.RequestID,
+		CarID:          b.CarID,
+		CarName:        b.Car.CarName,
+		DriverID:       b.DriverID,
+		DriverName:     b.GetDriverName(),
+		PlateNumber:    b.GetPlateNumber(),
+		DepartureDate:  b.DepartureDate.Format("2006-01-02"),
+		ReturnDate:     returnDateStr,
+		PickupLocation: b.PickupLocation,
+		PickedUpAt:     b.PickedUpAt,
+		ReturnedAt:     b.ReturnedAt,
+		StartOdometer:  b.StartOdometer,
+		EndOdometer:    b.EndOdometer,
+		FuelLevelReturn: b.FuelLevelReturn,
+		ReturnNotes:    b.ReturnNotes,
+		BookedBy:       b.BookedBy,
+		StartTime:      b.StartTime.Format("15:04"),
+		EndTime:        b.EndTime.Format("15:04"),
+		Status:         b.Status,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
 	}
 
 	if b.Car.ID != 0 {
@@ -140,6 +256,11 @@ func (b *CarBooking) ToResponse() CarBookingResponse {
 	if b.BookedByUser.ID != 0 {
 		userResp := b.BookedByUser.ToResponse()
 		response.BookedByUser = &userResp
+	}
+
+	if b.Driver != nil && b.Driver.ID != 0 {
+		driverResp := b.Driver.ToResponse()
+		response.Driver = &driverResp
 	}
 
 	return response

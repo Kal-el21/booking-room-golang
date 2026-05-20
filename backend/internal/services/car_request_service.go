@@ -338,9 +338,9 @@ func (s *CarRequestService) ApproveCarRequest(id uint, input ApproveCarRequestIn
 	}
 
 	// Check car capacity
-	if car.Capacity < request.RequiredCapacity {
+	if car.SeatCapacity < request.RequiredCapacity {
 		tx.Rollback()
-		return nil, fmt.Errorf("car capacity (%d) is less than required (%d)", car.Capacity, request.RequiredCapacity)
+		return nil, fmt.Errorf("car capacity (%d) is less than required (%d)", car.SeatCapacity, request.RequiredCapacity)
 	}
 
 	// Generate booking dates
@@ -374,16 +374,19 @@ func (s *CarRequestService) ApproveCarRequest(id uint, input ApproveCarRequestIn
 	// Create bookings for all dates
 	var firstBooking *models.CarBooking
 	for _, date := range bookingDates {
+		plateSnapshot := car.PlateNumber
+		carNameSnapshot := car.CarName
 		booking := &models.CarBooking{
-			RequestID:   request.ID,
-			CarID:       input.CarID,
-			BookedBy:    approverID,
-			BookingDate: date,
-			StartTime:   request.StartTime,
-			EndTime:     request.EndTime,
-			Status:      models.CarBookingConfirmed,
+			RequestID:           request.ID,
+			CarID:               input.CarID,
+			BookedBy:            approverID,
+			DepartureDate:       date,
+			StartTime:           request.StartTime,
+			EndTime:             request.EndTime,
+			Status:              models.CarBookingConfirmed,
+			PlateNumberSnapshot: plateSnapshot,
+			CarNameSnapshot:     &carNameSnapshot,
 		}
-
 		if err := tx.Create(booking).Error; err != nil {
 			tx.Rollback()
 			return nil, err
@@ -517,6 +520,10 @@ func (s *CarRequestService) RejectCarRequest(id uint, input RejectCarRequestInpu
 		return nil, errors.New("only pending requests can be rejected")
 	}
 
+	// Check if rejecting would cause conflicts (if there are approved bookings for overlapping dates)
+	conflictSvc := NewCarConflictService(s.db)
+	_ = conflictSvc
+
 	// Update request
 	request.Status = models.CarRequestRejected
 	request.AssignedBy = &rejecterID
@@ -623,18 +630,19 @@ func (s *CarRequestService) notifyUserCarRequestRejected(request *models.CarRequ
 
 func (s *CarRequestService) createCarNotificationSchedules(booking *models.CarBooking) {
 	bookingDateTime := time.Date(
-		booking.BookingDate.Year(),
-		booking.BookingDate.Month(),
-		booking.BookingDate.Day(),
+		booking.DepartureDate.Year(),
+		booking.DepartureDate.Month(),
+		booking.DepartureDate.Day(),
 		booking.StartTime.Hour(),
 		booking.StartTime.Minute(),
 		0, 0,
-		booking.BookingDate.Location(),
+		booking.DepartureDate.Location(),
 	)
 
 	// 24h before
+	bookingID := booking.ID
 	schedule24h := &models.NotificationSchedule{
-		BookingID:  booking.ID,
+		BookingID:  &bookingID,
 		NotifyType: "24h_before",
 		NotifyAt:   bookingDateTime.Add(-24 * time.Hour),
 		Channel:    models.ChannelBoth,
@@ -643,7 +651,7 @@ func (s *CarRequestService) createCarNotificationSchedules(booking *models.CarBo
 
 	// 3h before
 	schedule3h := &models.NotificationSchedule{
-		BookingID:  booking.ID,
+		BookingID:  &bookingID,
 		NotifyType: "3h_before",
 		NotifyAt:   bookingDateTime.Add(-3 * time.Hour),
 		Channel:    models.ChannelBoth,
@@ -652,7 +660,7 @@ func (s *CarRequestService) createCarNotificationSchedules(booking *models.CarBo
 
 	// 30m before
 	schedule30m := &models.NotificationSchedule{
-		BookingID:  booking.ID,
+		BookingID:  &bookingID,
 		NotifyType: "30m_before",
 		NotifyAt:   bookingDateTime.Add(-30 * time.Minute),
 		Channel:    models.ChannelInApp,

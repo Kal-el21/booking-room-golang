@@ -22,6 +22,15 @@ type CarRequest struct {
 	Purpose          string  `gorm:"type:text;not null" json:"purpose" binding:"required"`
 	Notes            *string `gorm:"type:text" json:"notes"`
 
+	// Travel information (NEW)
+	Destination           *string `gorm:"type:varchar(255)" json:"destination,omitempty"`
+	PickupLocation        *string `gorm:"type:varchar(255)" json:"pickup_location,omitempty"`
+	DriverRequired        bool    `gorm:"default:false" json:"driver_required"`
+	EstimatedDistanceKM   *int    `gorm:"type:integer" json:"estimated_distance_km,omitempty"`
+	PassengerCount        *int    `json:"passenger_count,omitempty"`
+	NeedsFuelReimbursement bool  `gorm:"default:false" json:"needs_fuel_reimbursement"`
+	FuelNote             *string `gorm:"type:text" json:"fuel_note,omitempty"`
+
 	// Consumption fields
 	HasConsumption  bool    `gorm:"default:false" json:"has_consumption"`
 	ConsumptionNote *string `gorm:"type:text" json:"consumption_note"`
@@ -108,6 +117,13 @@ type CarRequestResponse struct {
 	User             *UserResponse         `json:"user,omitempty"`
 	RequiredCapacity int                   `json:"required_capacity"`
 	Purpose          string                `json:"purpose"`
+	Destination       *string               `json:"destination,omitempty"`           // ← NEW
+	PickupLocation    *string               `json:"pickup_location,omitempty"`       // ← NEW
+	DriverRequired    bool                  `json:"driver_required"`                  // ← NEW
+	EstimatedDistanceKM *int                `json:"estimated_distance_km,omitempty"` // ← NEW
+	PassengerCount    *int                  `json:"passenger_count,omitempty"`        // ← NEW
+	NeedsFuelReimbursement bool             `json:"needs_fuel_reimbursement"`        // ← NEW
+	FuelNote         *string               `json:"fuel_note,omitempty"`             // ← NEW
 	Notes            *string               `json:"notes"`
 	HasConsumption   bool                  `json:"has_consumption"`
 	ConsumptionNote  *string               `json:"consumption_note"`
@@ -136,6 +152,13 @@ func (r *CarRequest) ToResponse() CarRequestResponse {
 		UserName:         r.User.Name,
 		RequiredCapacity: r.RequiredCapacity,
 		Purpose:          r.Purpose,
+		Destination:       r.Destination,
+		PickupLocation:    r.PickupLocation,
+		DriverRequired:    r.DriverRequired,
+		EstimatedDistanceKM: r.EstimatedDistanceKM,
+		PassengerCount:    r.PassengerCount,
+		NeedsFuelReimbursement: r.NeedsFuelReimbursement,
+		FuelNote:          r.FuelNote,
 		Notes:            r.Notes,
 		HasConsumption:   r.HasConsumption,
 		ConsumptionNote:  r.ConsumptionNote,

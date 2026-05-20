@@ -30,6 +30,7 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     // Redirect to their dashboard based on role
     switch (user.role) {
       case 'user':
+      case 'driver':
         return <Navigate to="/user/dashboard" replace />;
       case 'GA':
         return <Navigate to="/ga/dashboard" replace />;

@@ -125,7 +125,7 @@ const getNavItems = (role: string | undefined): NavItem[] => {
           icon: DoorOpen,
           children: [
             { title: 'Manage Rooms',         href: '/admin/rooms' },
-            { title: 'Manage Room Requests', href: '/admin/requests' },
+            // { title: 'Manage Room Requests', href: '/admin/requests' },
             { title: 'Room Calendar',        href: '/admin/calendar' },
           ],
         },
@@ -134,7 +134,7 @@ const getNavItems = (role: string | undefined): NavItem[] => {
           icon: Car,
           children: [
             { title: 'Manage Cars',         href: '/admin/cars' },
-            { title: 'Manage Car Requests', href: '/admin/car-requests' },
+            // { title: 'Manage Car Requests', href: '/admin/car-requests' },
             { title: 'Car Calendar',        href: '/admin/car-calendar' },
           ],
         },
@@ -278,6 +278,7 @@ export const DashboardLayout = () => {
     switch (user?.role) {
       case 'room_admin': return <Badge variant="outline">Room Admin</Badge>;
       case 'GA':         return <Badge variant="outline">GA</Badge>;
+      case 'driver':     return <Badge variant="secondary">Driver</Badge>;
       default:           return <Badge variant="secondary">User</Badge>;
     }
   };

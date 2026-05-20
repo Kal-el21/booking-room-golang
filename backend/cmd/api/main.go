@@ -113,8 +113,8 @@ func main() {
 		})
 	})
 
-	// Setup routes
-	bookingService := routes.SetupRoutes(router, database.GetDB())
+	// Setup routes (scheduler started internally)
+	bookingService, _ := routes.SetupRoutes(router, database.GetDB())
 
 	// Start background job for booking auto-completion
 	go func() {

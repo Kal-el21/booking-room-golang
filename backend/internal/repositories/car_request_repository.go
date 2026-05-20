@@ -16,6 +16,11 @@ func NewCarRequestRepository(db *gorm.DB) *CarRequestRepository {
 	return &CarRequestRepository{db: db}
 }
 
+// GetDB returns the underlying *gorm.DB
+func (r *CarRequestRepository) GetDB() *gorm.DB {
+	return r.db
+}
+
 // Create creates a new car request
 func (r *CarRequestRepository) Create(request *models.CarRequest) error {
 	return r.db.Create(request).Error
@@ -100,6 +105,11 @@ func NewCarBookingRepository(db *gorm.DB) *CarBookingRepository {
 	return &CarBookingRepository{db: db}
 }
 
+// GetDB returns the underlying *gorm.DB for raw queries
+func (r *CarBookingRepository) GetDB() *gorm.DB {
+	return r.db
+}
+
 // Create creates a new car booking
 func (r *CarBookingRepository) Create(booking *models.CarBooking) error {
 	return r.db.Create(booking).Error
@@ -125,7 +135,7 @@ func (r *CarBookingRepository) FindByRequestID(requestID uint) ([]models.CarBook
 		Preload("Car").
 		Preload("Request").
 		Preload("Request.User").
-		Order("booking_date ASC").
+		Order("departure_date ASC").
 		Find(&bookings).Error
 	return bookings, err
 }
@@ -156,7 +166,7 @@ func (r *CarBookingRepository) List(page, pageSize int, filters map[string]inter
 		query = query.Where("status = ?", status)
 	}
 	if bookingDate, ok := filters["booking_date"]; ok {
-		query = query.Where("booking_date = ?", bookingDate)
+		query = query.Where("departure_date = ?", bookingDate)
 	}
 
 	// Count total
@@ -170,7 +180,7 @@ func (r *CarBookingRepository) List(page, pageSize int, filters map[string]inter
 		Preload("Request.User").
 		Preload("Car").
 		Preload("BookedByUser").
-		Order("booking_date DESC, start_time ASC").
+		Order("departure_date DESC, start_time ASC").
 		Offset(offset).
 		Limit(pageSize).
 		Find(&bookings).Error
@@ -186,7 +196,7 @@ func (r *CarBookingRepository) GetUserCarBookings(userID uint) ([]models.CarBook
 		Where("car_requests.user_id = ?", userID).
 		Preload("Request").
 		Preload("Car").
-		Order("booking_date DESC, start_time ASC").
+		Order("departure_date DESC, start_time ASC").
 		Find(&bookings).Error
 	return bookings, err
 }
@@ -196,7 +206,7 @@ func (r *CarBookingRepository) GetCalendarCarBookings(startDate, endDate time.Ti
 	var bookings []models.CarBooking
 
 	query := r.db.Model(&models.CarBooking{}).
-		Where("booking_date >= ? AND booking_date <= ?", startDate, endDate).
+		Where("departure_date >= ? AND departure_date <= ?", startDate, endDate).
 		Where("status IN ?", []models.CarBookingStatus{models.CarBookingConfirmed, models.CarBookingCompleted})
 
 	// Filter by car if specified
@@ -209,7 +219,7 @@ func (r *CarBookingRepository) GetCalendarCarBookings(startDate, endDate time.Ti
 		Preload("Request.User").
 		Preload("Car").
 		Preload("BookedByUser").
-		Order("booking_date ASC, start_time ASC").
+		Order("departure_date ASC, start_time ASC").
 		Find(&bookings).Error
 
 	return bookings, err
@@ -234,11 +244,15 @@ func (r *CarRequestRepository) GetCalendarCarRequests(startDate, endDate time.Ti
 	return requests, err
 }
 
-// GetOldCarBookings gets all confirmed car bookings with booking_date before the given date
+// GetOldCarBookings gets all old car bookings (departure_date before given date) in non-terminal statuses
 func (r *CarBookingRepository) GetOldCarBookings(beforeDate time.Time) ([]*models.CarBooking, error) {
 	var bookings []*models.CarBooking
 	err := r.db.
-		Where("booking_date < ? AND status = ?", beforeDate, models.CarBookingConfirmed).
+		Where("departure_date < ? AND status NOT IN ?", beforeDate, []models.CarBookingStatus{
+			models.CarBookingReturned,
+			models.CarBookingLateReturn,
+			models.CarBookingCancelled,
+		}).
 		Preload("Car").
 		Preload("Request").
 		Find(&bookings).Error

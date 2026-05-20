@@ -12,6 +12,7 @@ const (
 	RoleUser      UserRole = "user"
 	RoleRoomAdmin UserRole = "room_admin"
 	RoleGA        UserRole = "GA"
+	RoleDriver    UserRole = "driver"
 )
 
 type User struct {
@@ -24,6 +25,7 @@ type User struct {
 	Division        *string        `gorm:"type:varchar(100)" json:"division"`
 	IsActive        bool           `gorm:"default:true" json:"is_active"`
 	Avatar          *string        `gorm:"type:varchar(255)" json:"avatar"`
+	DriverLicense   *string        `gorm:"type:varchar(50);uniqueIndex:idx_driver_license_unique,where:role='driver'" json:"driver_license,omitempty"`
 	RefreshToken    *string        `gorm:"type:text" json:"-"` // For JWT refresh
 	CreatedAt       time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt       time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
@@ -37,6 +39,7 @@ type User struct {
 	Notifications    []Notification  `gorm:"foreignKey:UserID" json:"notifications,omitempty"`
 	Sessions         []UserSession   `gorm:"foreignKey:UserID" json:"sessions,omitempty"`
 	Preferences      *UserPreference `gorm:"foreignKey:UserID" json:"preferences,omitempty"`
+	DriverBookings   []CarBooking    `gorm:"foreignKey:DriverID" json:"driver_bookings,omitempty"` // ← NEW
 }
 
 // TableName specifies table name
@@ -69,6 +72,11 @@ func (u *User) CanApproveRequests() bool {
 	return u.Role == RoleGA
 }
 
+// IsDriver checks if user is a driver
+func (u *User) IsDriver() bool {
+	return u.Role == RoleDriver
+}
+
 // UserResponse for API responses (without sensitive data)
 type UserResponse struct {
 	ID              uint            `json:"id"`
@@ -78,6 +86,7 @@ type UserResponse struct {
 	Division        *string         `json:"division"`
 	IsActive        bool            `json:"is_active"`
 	Avatar          *string         `json:"avatar"`
+	DriverLicense   *string         `json:"driver_license,omitempty"`
 	EmailVerifiedAt *time.Time      `json:"email_verified_at"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
@@ -94,6 +103,7 @@ func (u *User) ToResponse() UserResponse {
 		Division:        u.Division,
 		IsActive:        u.IsActive,
 		Avatar:          u.Avatar,
+		DriverLicense:   u.DriverLicense,
 		EmailVerifiedAt: u.EmailVerifiedAt,
 		CreatedAt:       u.CreatedAt,
 		UpdatedAt:       u.UpdatedAt,

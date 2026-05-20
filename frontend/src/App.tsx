@@ -19,6 +19,7 @@ import { RoomsPage } from './pages/user/RoomsPage';
 import { CreateRequestPage } from './pages/user/CreateRequestPage';
 import { MyRequestsPage } from './pages/user/MyRequestsPage';
 import { MyBookingsPage } from './pages/user/MyBookingsPage';
+import { MyCarBookingsPage } from './pages/user/MyCarBookingsPage';
 import { CarsPage } from './pages/user/CarsPage';
 import { CreateCarRequestPage } from './pages/user/CreateCarRequestPage';
 import { MyCarRequestsPage } from './pages/user/MyCarRequestsPage';
@@ -27,7 +28,9 @@ import { CarCalendarPage } from './pages/user/CarCalendarPage';
 // GA Pages
 import { GADashboard } from './pages/ga/GADashboard';
 import { PendingRequestsPage } from './pages/ga/PendingRequestsPage';
+import { PendingCarRequestsPage } from './pages/ga/PendingCarRequestsPage';
 import { AllBookingsPage } from './pages/ga/AllBookingsPage';
+import { AllCarBookingsPage } from './pages/ga/AllCarBookingsPage';
 import { UsersPage as GAUsersPage } from './pages/ga/UsersPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -35,6 +38,7 @@ import { SettingsPage } from './pages/SettingsPage';
 // Admin Pages
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { ManageRoomsPage } from './pages/admin/ManageRoomsPage';
+import { ManageCarsPage } from './pages/admin/ManageCarsPage';
 import { ManageUsersPage } from './pages/admin/ManageUsersPage';
 
 const queryClient = new QueryClient({
@@ -77,6 +81,7 @@ function App() {
                   <Route path="requests" element={<MyRequestsPage />} />
                   <Route path="requests/new" element={<CreateRequestPage />} />
                   <Route path="bookings" element={<MyBookingsPage />} />
+                  <Route path="car-bookings" element={<MyCarBookingsPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="cars" element={<CarsPage />} />
                   <Route path="car-requests" element={<MyCarRequestsPage />} />
@@ -96,7 +101,9 @@ function App() {
                 >
                   <Route path="dashboard" element={<GADashboard />} />
                   <Route path="requests" element={<PendingRequestsPage />} />
+                  <Route path="car-requests" element={<PendingCarRequestsPage />} />
                   <Route path="bookings" element={<AllBookingsPage />} />
+                  <Route path="car-bookings" element={<AllCarBookingsPage />} />
                   <Route path="users" element={<GAUsersPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="car-calendar" element={<CarCalendarPage />} />
@@ -114,6 +121,7 @@ function App() {
                 >
                   <Route path="dashboard" element={<AdminDashboard />} />
                   <Route path="rooms" element={<ManageRoomsPage />} />
+                  <Route path="cars" element={<ManageCarsPage />} />
                   <Route path="users" element={<ManageUsersPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="car-calendar" element={<CarCalendarPage />} />

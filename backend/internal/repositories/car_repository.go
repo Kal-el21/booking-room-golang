@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/models"
-
 	"gorm.io/gorm"
 )
 
@@ -57,7 +56,7 @@ func (r *CarRepository) List(page, pageSize int, filters map[string]interface{})
 		query = query.Where("capacity >= ?", minCapacity)
 	}
 	if location, ok := filters["location"]; ok {
-		query = query.Where("location ILIKE ?", "%"+location.(string)+"%")
+		query = query.Where("garage_location ILIKE ?", "%"+location.(string)+"%")
 	}
 
 	// Count total
@@ -74,11 +73,13 @@ func (r *CarRepository) List(page, pageSize int, filters map[string]interface{})
 func (r *CarRepository) GetAvailableCars(capacity int, bookingDate time.Time, startTime, endTime time.Time) ([]models.Car, error) {
 	var cars []models.Car
 
+	blockedStatuses := []models.CarBookingStatus{models.CarBookingConfirmed, models.CarBookingPickedUp, models.CarBookingInUse}
+
 	// Subquery to find cars that are already booked at the requested time
 	subQuery := r.db.Model(&models.CarBooking{}).
 		Select("car_id").
-		Where("booking_date = ?", bookingDate).
-		Where("status = ?", models.CarBookingConfirmed).
+		Where("departure_date = ?", bookingDate).
+		Where("status IN ?", blockedStatuses).
 		Where("(start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?)",
 			endTime, startTime,
 			endTime, endTime,
@@ -101,10 +102,17 @@ func (r *CarRepository) GetAvailableCars(capacity int, bookingDate time.Time, st
 func (r *CarRepository) CheckAvailability(carID uint, bookingDate time.Time, startTime, endTime time.Time, excludeBookingID *uint) (bool, error) {
 	var count int64
 
+	// Cars with confirmed, picked_up, or in_use status block availability
+	blockedStatuses := []models.CarBookingStatus{
+		models.CarBookingConfirmed,
+		models.CarBookingPickedUp,
+		models.CarBookingInUse,
+	}
+
 	query := r.db.Model(&models.CarBooking{}).
 		Where("car_id = ?", carID).
-		Where("booking_date = ?", bookingDate).
-		Where("status = ?", models.CarBookingConfirmed).
+		Where("departure_date = ?", bookingDate).
+		Where("status IN ?", blockedStatuses).
 		Where("(start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?)",
 			endTime, startTime,
 			endTime, endTime,

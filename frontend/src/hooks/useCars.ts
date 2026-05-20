@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { carService, carRequestService } from '@/services/car.service';
-import type { Car, CreateCarRequestInput, ApproveCarRequestInput, RejectCarRequestInput, CarRequestFilters } from '@/types';
+import { carBookingService } from '@/services/car-booking.service';
+import type { Car, CreateCarRequestInput, ApproveCarRequestInput, RejectCarRequestInput, CarRequestFilters, CarBooking, CarBookingFilters, CarBookingStatus, FleetStatusResponse, PickUpBookingInput, ReturnBookingInput, AssignDriverInput } from '@/types';
 
 // ─── Car Management Hooks ────────────────────────────────────────────
 
@@ -192,5 +193,113 @@ export const useCarCalendar = () => {
       endDate: string;
       carId?: number;
     }) => carRequestService.getCarCalendar(startDate, endDate, carId),
+  });
+};
+
+// ─── Car Booking Lifecycle Hooks ─────────────────────────────────────────────
+
+export const useCarBookings = (filters?: CarBookingFilters) => {
+  return useQuery({
+    queryKey: ['carBookings', filters],
+    queryFn: () => carBookingService.listAllCarBookings(filters),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const useCarBooking = (id: number) => {
+  return useQuery({
+    queryKey: ['carBooking', id],
+    queryFn: () => carBookingService.getCarBooking(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const usePickUpBooking = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: PickUpBookingInput }) =>
+      carBookingService.pickUpBooking(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['carBooking', id] });
+      queryClient.invalidateQueries({ queryKey: ['carBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['fleetStatus'] });
+    },
+  });
+};
+
+export const useReturnBooking = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: ReturnBookingInput }) =>
+      carBookingService.returnBooking(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['carBooking', id] });
+      queryClient.invalidateQueries({ queryKey: ['carBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['fleetStatus'] });
+    },
+  });
+};
+
+export const useUpdateCarBookingStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: number; status: CarBookingStatus }) =>
+      carBookingService.updateBookingStatus(id, status),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['carBooking', id] });
+      queryClient.invalidateQueries({ queryKey: ['carBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['fleetStatus'] });
+    },
+  });
+};
+
+export const useAssignDriver = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: AssignDriverInput }) =>
+      carBookingService.assignDriver(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['carBooking', id] });
+      queryClient.invalidateQueries({ queryKey: ['carBookings'] });
+    },
+  });
+};
+
+export const useUnassignDriver = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => carBookingService.unassignDriver(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['carBooking', id] });
+      queryClient.invalidateQueries({ queryKey: ['carBookings'] });
+    },
+  });
+};
+
+export const useFleetStatus = () => {
+  return useQuery({
+    queryKey: ['fleetStatus'],
+    queryFn: () => carBookingService.getFleetStatus(),
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
+// ─── Driver-Specific Hooks ───────────────────────────────────────────────────
+
+export const useDriverBookings = (filters?: CarBookingFilters) => {
+  return useQuery({
+    queryKey: ['driverBookings', filters],
+    queryFn: () => carBookingService.getDriverBookings(filters),
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
+export const useDriverBooking = (id: number) => {
+  return useQuery({
+    queryKey: ['driverBooking', id],
+    queryFn: () => carBookingService.getCarBooking(id),
+    enabled: !!id,
+    staleTime: 2 * 60 * 1000,
   });
 };

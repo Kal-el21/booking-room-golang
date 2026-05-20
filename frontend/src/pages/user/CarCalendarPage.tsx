@@ -116,7 +116,7 @@ const expandCalendarEvent = (event: CalendarEvent, calendarStart: Date, calendar
 
 const CarCalendarPageContent = () => {
   const [currentDate] = useState(new Date());
-  const [currentView] = useState('dayGridMonth');
+  const [currentView, setCurrentView] = useState('dayGridMonth');
   const [selectedCarId, setSelectedCarId] = useState<string>('all');
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
@@ -377,5 +377,9 @@ const CarCalendarPageContent = () => {
 };
 
 export const CarCalendarPage = () => {
-  return <CarCalendarPageContent />;
+  return (
+    <ErrorBoundary>
+      <CarCalendarPageContent />
+    </ErrorBoundary>
+  );
 };

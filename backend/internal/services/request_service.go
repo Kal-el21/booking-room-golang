@@ -601,8 +601,9 @@ func (s *RequestService) createNotificationSchedules(booking *models.RoomBooking
 	)
 
 	// 24h before
+	bookingID := booking.ID
 	schedule24h := &models.NotificationSchedule{
-		BookingID:  booking.ID,
+		BookingID:  &bookingID,
 		NotifyType: "24h_before",
 		NotifyAt:   bookingDateTime.Add(-24 * time.Hour),
 		Channel:    models.ChannelBoth,
@@ -611,7 +612,7 @@ func (s *RequestService) createNotificationSchedules(booking *models.RoomBooking
 
 	// 3h before
 	schedule3h := &models.NotificationSchedule{
-		BookingID:  booking.ID,
+		BookingID:  &bookingID,
 		NotifyType: "3h_before",
 		NotifyAt:   bookingDateTime.Add(-3 * time.Hour),
 		Channel:    models.ChannelBoth,
@@ -620,7 +621,7 @@ func (s *RequestService) createNotificationSchedules(booking *models.RoomBooking
 
 	// 30m before
 	schedule30m := &models.NotificationSchedule{
-		BookingID:  booking.ID,
+		BookingID:  &bookingID,
 		NotifyType: "30m_before",
 		NotifyAt:   bookingDateTime.Add(-30 * time.Minute),
 		Channel:    models.ChannelInApp,

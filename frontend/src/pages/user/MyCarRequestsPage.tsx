@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useCarRequests /*useDeleteCarRequest*/ } from '@/hooks/useCars';
+import { useCarRequests } from '@/hooks/useCars';
 import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,10 +20,19 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  FileText, Calendar, Clock, Users, Plus, Trash2, Eye, Repeat, Coffee, CarIcon,
+  FileText,
+  Calendar,
+  Clock,
+  Users,
+  Plus,
+  Trash2,
+  Eye,
+  Repeat,
+  Coffee,
+  CarIcon,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { formatDateRange, formatTimeRange } from '@/utils/dateHelpers';
+import { formatCarRequestDateRange, formatTimeRange, getCarRequestTypeLabel } from '@/utils/dateHelpers';
 import type { CarRequestFilters } from '@/types';
 
 export const MyCarRequestsPage = () => {
@@ -63,21 +72,6 @@ export const MyCarRequestsPage = () => {
     // await deleteRequest.mutateAsync(selectedRequestId);
     setDeleteDialogOpen(false);
     setSelectedRequestId(null);
-  };
-
-  const formatCarRequestDateRange = (request: any) => {
-    if (request.end_date) {
-      const end = new Date(request.end_date);
-      end.setDate(end.getDate() + 1);
-      return formatDateRange(new Date(request.booking_date), end);
-    }
-    return formatDateRange(new Date(request.booking_date), new Date(request.booking_date));
-  };
-
-  const getCarRequestTypeLabel = (request: any) => {
-    if (request.is_recurring) return 'Recurring';
-    if (request.end_date) return 'Multi-day';
-    return 'Single Day';
   };
 
   const requests = requestsData?.data || [];

@@ -1,118 +1,165 @@
-import { useBookings } from '@/hooks/useBookings';
+import { useState } from 'react';
+import { useCarBookings } from '@/hooks/useCars';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DoorOpen, Calendar, Clock, Repeat } from 'lucide-react';
+import { DoorOpen, Calendar, Clock, Car as CarIcon, Fuel, Gauge, MapPin, User } from 'lucide-react';
 import { format, parseISO, isPast, isToday, isFuture, startOfDay } from 'date-fns';
-import { formatBookingDateRange, formatTimeRange, isMultiDayBooking } from '@/utils/dateHelpers';
-import type { Booking } from '@/types';
+import { formatCarBookingDateRange, formatPickupTime, formatReturnTime, getKmTraveled, getCarBookingStatusLabel, getCarBookingStatusConfig } from '@/utils/dateHelpers';
+import type { CarBooking, CarBookingStatus } from '@/types';
 
-export const MyBookingsPage = () => {
-  const { data: bookingsData, isLoading } = useBookings({
-    page: 1,
-    page_size: 100,
-  });
+export const MyCarBookingsPage = () => {
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'all'>('all');
+  const { data: bookingsData, isLoading } = useCarBookings();
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: 'default' | 'outline' | 'secondary' | 'destructive'; label: string }> = {
-      confirmed: { variant: 'default', label: 'Confirmed' },
-      cancelled: { variant: 'destructive', label: 'Cancelled' },
-      completed: { variant: 'secondary', label: 'Completed' },
-    };
-    const config = variants[status] || variants.confirmed;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+  const bookings = (bookingsData?.data || []) as CarBooking[];
+
+  // ── Categorise bookings ────────────────────────────────────────────────────
+
+  const getCarBookingDate = (b: CarBooking): Date => {
+    const d = b.picked_up_at ? parseISO(b.picked_up_at) : parseISO(b.departure_date || b.booking_date || '');
+    return startOfDay(d);
   };
 
-  const bookings = bookingsData?.data || [];
-
-  // Filter bookings by date
-  const upcomingBookings = bookings.filter((b: Booking) => {
-    if (b.status !== 'confirmed') return false;
-    const bookingDate = startOfDay(parseISO(b.booking_date));
-    return isFuture(bookingDate) || isToday(bookingDate);
+  const upcomingBookings = bookings.filter((b: CarBooking) => {
+    if (b.status === 'returned' || b.status === 'late_return' || b.status === 'cancelled') return false;
+    return isFuture(getCarBookingDate(b)) || isToday(getCarBookingDate(b));
   });
 
-  const pastBookings = bookings.filter((b: Booking) => {
-    const bookingDate = startOfDay(parseISO(b.booking_date));
-    return isPast(bookingDate) && !isToday(bookingDate);
+  const pastBookings = bookings.filter((b: CarBooking) => {
+    return isPast(getCarBookingDate(b)) && !isToday(getCarBookingDate(b));
   });
 
-  const BookingCard = ({ booking }: { booking: Booking }) => (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <DoorOpen className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">
-                {booking.room_name || `Room #${booking.room_id}`}
-              </CardTitle>
+  // When "upcoming" tab is selected filter inside the tab
+  const displayedBookings = (() => {
+    switch (activeTab) {
+      case 'upcoming': return upcomingBookings;
+      case 'past':      return pastBookings;
+      default:          return bookings;
+    }
+  })();
+
+  // ── Card component ─────────────────────────────────────────────────────────
+
+  const BookingCard = ({ booking }: { booking: CarBooking }) => {
+    const km = getKmTraveled(booking.start_odometer, booking.end_odometer);
+    const isDriverAssigned = !!booking.driver_id;
+    const isPickedUp = !!booking.picked_up_at;
+    const isReturned = !!booking.returned_at;
+
+    return (
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <CarIcon className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">
+                  {booking.car_name_snapshot || booking.car?.car_name || `Car #${booking.car_id}`}
+                </CardTitle>
+              </div>
+              <CardDescription className="space-y-1 mt-2">
+                <div className="flex items-center gap-1 text-sm">
+                  <Calendar className="h-3 w-3" />
+                  {formatCarBookingDateRange(booking)}
+                </div>
+                <div className="flex items-center gap-1 text-sm">
+                  <Clock className="h-3 w-3" />
+                  {booking.start_time} – {booking.end_time}
+                </div>
+                {booking.plate_number_snapshot && (
+                  <div className="flex items-center gap-1 text-sm">
+                    <MapPin className="h-3 w-3" />
+                    {booking.plate_number_snapshot}
+                  </div>
+                )}
+              </CardDescription>
             </div>
-            {/* Multi-day badge */}
-            {isMultiDayBooking(booking) && (
-              <div className="flex items-center gap-1 mb-1">
-                <Repeat className="h-3 w-3 text-primary" />
-                <Badge variant="outline" className="text-xs">
-                  Multi-day
-                </Badge>
-              </div>
-            )}
-            <CardDescription className="space-y-1 mt-2">
-              <div className="flex items-center gap-1 text-sm">
-                <Calendar className="h-3 w-3" />
-                {formatBookingDateRange(booking)}
-              </div>
-              <div className="flex items-center gap-1 text-sm">
-                <Clock className="h-3 w-3" />
-                {formatTimeRange(booking.start_time, booking.end_time)}
-              </div>
-            </CardDescription>
-          </div>
-          {getStatusBadge(booking.status)}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Booked on {format(parseISO(booking.created_at), 'MMM dd, yyyy')}
-          </div>
-          {isToday(parseISO(booking.booking_date)) && booking.status === 'confirmed' && (
-            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-              Today
+            <Badge variant={getCarBookingStatusConfig(booking.status)}>
+              {getCarBookingStatusLabel(booking.status)}
             </Badge>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-3">
+          {/* Driver info */}
+          {(booking.driver_name || booking.driver) && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <User className="h-4 w-4" />
+              <span>Driver: {booking.driver_name || booking.driver?.name || '—'}</span>
+            </div>
           )}
-        </div>
-      </CardContent>
-    </Card>
-  );
+
+          {/* Pickup info */}
+          {isPickedUp && booking.start_odometer != null && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Gauge className="h-4 w-4" />
+              <span>
+                Picked up at {booking.pickup_location || '—'} · Odometer {booking.start_odometer.toLocaleString()} km
+                {' '}({formatPickupTime(booking.picked_up_at)})
+              </span>
+            </div>
+          )}
+
+          {/* Return info */}
+          {isReturned && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Gauge className="h-4 w-4" />
+              <span>
+                Returned · Odometer {booking.end_odometer?.toLocaleString()} km
+                {km !== null && (
+                  <span className="ml-1">({km.toLocaleString()} km travelled)</span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {isReturned && booking.fuel_level_return != null && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Fuel className="h-4 w-4" />
+              <span>Fuel on return: {booking.fuel_level_return}%</span>
+            </div>
+          )}
+
+          {booking.return_notes && (
+            <p className="text-xs text-muted-foreground italic">
+              Note: {booking.return_notes}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // ── Loading state ──────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-40 w-full" />
       </div>
     );
   }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold">My Bookings</h2>
+        <h2 className="text-2xl font-bold">My Car Bookings</h2>
         <p className="text-muted-foreground">
-          View all your room bookings
+          View all your vehicle bookings — pickup, return, and travel records
         </p>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Bookings
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{bookings.length}</div>
@@ -120,9 +167,7 @@ export const MyBookingsPage = () => {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Upcoming
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{upcomingBookings.length}</div>
@@ -130,86 +175,48 @@ export const MyBookingsPage = () => {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Completed
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">In Use</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {bookings.filter((b) => b.status === 'completed').length}
+              {bookings.filter((b: CarBooking) => b.status === 'in_use' || b.status === 'picked_up').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Returned</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {bookings.filter((b: CarBooking) => b.status === 'returned' || b.status === 'late_return').length}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Bookings Tabs */}
-      <Tabs defaultValue="upcoming" className="space-y-4">
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as CarBookingStatus)} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="upcoming">
-            Upcoming ({upcomingBookings.length})
-          </TabsTrigger>
-          <TabsTrigger value="past">
-            Past ({pastBookings.length})
-          </TabsTrigger>
-          <TabsTrigger value="all">
-            All ({bookings.length})
-          </TabsTrigger>
+          <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
+          <TabsTrigger value="upcoming">Upcoming ({upcomingBookings.length})</TabsTrigger>
+          <TabsTrigger value="past">Past ({pastBookings.length})</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="upcoming" className="space-y-4">
-          {upcomingBookings.length === 0 ? (
+        <TabsContent value={activeTab} className="space-y-4">
+          {displayedBookings.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
-                <Calendar className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-                <h3 className="text-lg font-semibold mb-2">No upcoming bookings</h3>
+                <CarIcon className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">No car bookings yet</h3>
                 <p className="text-sm text-muted-foreground text-center">
-                  You don't have any confirmed bookings scheduled
+                  Your car bookings will appear here once approved by the GA team
                 </p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-4">
-              {upcomingBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="past" className="space-y-4">
-          {pastBookings.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Calendar className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-                <h3 className="text-lg font-semibold mb-2">No past bookings</h3>
-                <p className="text-sm text-muted-foreground text-center">
-                  Your booking history will appear here
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {pastBookings.map((booking) => (
-                <BookingCard key={booking.id} booking={booking} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="all" className="space-y-4">
-          {bookings.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <Calendar className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
-                <h3 className="text-lg font-semibold mb-2">No bookings yet</h3>
-                <p className="text-sm text-muted-foreground text-center">
-                  Create a room request to get started
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {bookings.map((booking) => (
+              {displayedBookings.map((booking: CarBooking) => (
                 <BookingCard key={booking.id} booking={booking} />
               ))}
             </div>
