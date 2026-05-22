@@ -137,6 +137,7 @@ func (s *AuthService) ValidateCredentials(input LoginInput) (*models.User, error
 			ldapUsername := extractLDAPUsername(input.Email)
 			ldapInfo, err := utils.LDAPAuthenticate(ldapUsername, input.Password)
 			if err != nil {
+				log.Printf("[AuthService] LDAP authenticate failed for user %s: %v", input.Email, err)
 				return nil, errors.New("email atau password salah")
 			}
 
@@ -199,17 +200,18 @@ func (s *AuthService) ValidateCredentials(input LoginInput) (*models.User, error
 		return nil, dbErr
 	}
 
-	// ── Try LDAP (auto-create flow) ────────────────────────────────────────────
-	if config.App.LDAP.Host == "" {
-		// LDAP is not configured and the user isn't in the DB.
-		return nil, errors.New("email atau password salah")
-	}
+// ── Try LDAP (auto-create flow) ────────────────────────────────────────────
+ 	if config.App.LDAP.Host == "" {
+ 		// LDAP is not configured and the user isn't in the DB.
+ 		return nil, errors.New("email atau password salah")
+ 	}
 
-	ldapUsername := extractLDAPUsername(input.Email)
-	ldapInfo, err := utils.LDAPAuthenticate(ldapUsername, input.Password)
-	if err != nil {
-		return nil, errors.New("email atau password salah")
-	}
+ 	ldapUsername := extractLDAPUsername(input.Email)
+ 	ldapInfo, err := utils.LDAPAuthenticate(ldapUsername, input.Password)
+ 	if err != nil {
+ 		log.Printf("[AuthService] LDAP auto-create flow failed for user %s: %v", input.Email, err)
+ 		return nil, errors.New("email atau password salah")
+ 	}
 
 	// Resolve email: prefer the one from LDAP, fall back to the login input.
 	email := ldapInfo.Email
