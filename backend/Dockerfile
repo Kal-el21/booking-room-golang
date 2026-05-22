@@ -44,4 +44,5 @@ COPY --from=builder /app/seed_admin .
 EXPOSE 8080
 
 # Run the application
-CMD ["./main"]
+# Run seed_admin first to ensure admin user exists (idempotent)
+CMD sh -c "./seed_admin && ./main"
