@@ -41,14 +41,15 @@ func NewCarSchedulerService(
 // and transitions them to picked_up with zero odometer (driver did not pick up)
 func (s *CarSchedulerService) RunOverdueCheck() {
 	now := time.Now().Local()
-	today := now.Truncate(24 * time.Hour)
+	today := now.Format("2006-01-02")
+	currentTime := now.Format("15:04:05")
 
 	// Find confirmed bookings whose departure_date + start_time has already passed
 	var bookings []models.CarBooking
 	err := s.db.
 		Where("status = ?", models.CarBookingConfirmed).
-		Where("departure_date < ? OR (departure_date = ? AND TIME(start_time) <= TIME(?))",
-			today, today, now.Format("15:04:05")).
+		Where("departure_date < ?::date OR (departure_date = ?::date AND start_time::time <= ?::time)",
+			today, today, currentTime).
 		Preload("Car").
 		Preload("Request").
 		Preload("Request.User").
@@ -79,20 +80,16 @@ func (s *CarSchedulerService) RunOverdueCheck() {
 		if now.After(endDateTime) {
 			// Entire booking window passed — mark as late_return
 			booking.Status = models.CarBookingLateReturn
-			zeroOdometer := 0
-			booking.StartOdometer = &zeroOdometer
-			booking.EndOdometer = &zeroOdometer
-			fuelLevelReturn := 0
-			booking.FuelLevelReturn = &fuelLevelReturn
-			booking.PlateNumberSnapshot = booking.Car.PlateNumber
-			carNameSnapshot := booking.Car.CarName
-			booking.CarNameSnapshot = &carNameSnapshot
 			note := "Auto-marked as late_return: booking window passed without pickup"
 			booking.ReturnNotes = &note
 
 			if err := s.bookingRepo.Update(&booking); err != nil {
 				log.Printf("[CarScheduler] Failed to mark booking %d as late_return: %v", booking.ID, err)
 				continue
+			}
+
+			if err := releaseCarIfNoActiveBookings(s.db, booking.CarID); err != nil {
+				log.Printf("[CarScheduler] Failed to release car %d after late_return: %v", booking.CarID, err)
 			}
 
 			s.notifyGAAutoLateReturn(&booking)
@@ -109,6 +106,10 @@ func (s *CarSchedulerService) RunOverdueCheck() {
 			if err := s.bookingRepo.Update(&booking); err != nil {
 				log.Printf("[CarScheduler] Failed to auto-pickup booking %d: %v", booking.ID, err)
 				continue
+			}
+
+			if err := markCarOccupied(s.db, booking.CarID); err != nil {
+				log.Printf("[CarScheduler] Failed to mark car %d as occupied: %v", booking.CarID, err)
 			}
 
 			s.notifyGAAutoPickup(&booking)

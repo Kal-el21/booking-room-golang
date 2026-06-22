@@ -55,6 +55,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) (*services.BookingService, *se
 	// ── Static files ─────────────────────────────────────────────────────────
 	router.Static("/uploads/users", "./internal/uploads/users")
 	router.Static("/uploads/rooms", "./internal/uploads/rooms")
+	router.Static("/uploads/cars", "./internal/uploads/cars")
 
 	// ── API v1 ───────────────────────────────────────────────────────────────
 	v1 := router.Group("/api/v1")
@@ -109,9 +110,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) (*services.BookingService, *se
 
 			// Cars (read-only for all authenticated users)
 			protected.GET("/cars", carHandler.ListCars)
+			protected.GET("/cars/available", carHandler.GetAvailableCars)
 			protected.GET("/cars/:id", carHandler.GetCar)
 			protected.POST("/cars/:id/availability", carHandler.CheckAvailability)
-			protected.GET("/cars/available", carHandler.GetAvailableCars)
 
 			// Car bookings
 
@@ -129,15 +130,18 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) (*services.BookingService, *se
 			protected.PUT("/room-requests/:id", requestHandler.UpdateRequest)
 			protected.DELETE("/room-requests/:id", requestHandler.DeleteRequest)
 
-		// Car requests
-		protected.GET("/car-requests", carRequestHandler.ListCarRequests)
-		protected.POST("/car-requests", carRequestHandler.CreateCarRequest)
-		protected.GET("/car-requests/:id", carRequestHandler.GetCarRequest)
-		protected.PUT("/car-requests/:id", carRequestHandler.UpdateCarRequest)
-		protected.DELETE("/car-requests/:id", carRequestHandler.DeleteCarRequest)
+			// Car requests
+			protected.GET("/car-requests", carRequestHandler.ListCarRequests)
+			protected.POST("/car-requests", carRequestHandler.CreateCarRequest)
+			protected.GET("/car-requests/:id", carRequestHandler.GetCarRequest)
+			protected.PUT("/car-requests/:id", carRequestHandler.UpdateCarRequest)
+			protected.DELETE("/car-requests/:id", carRequestHandler.DeleteCarRequest)
 
-		// Car booking detail (all authenticated users)
-		protected.GET("/car-bookings/:id", carBookingHandler.GetCarBooking)
+			// Car bookings for the current user
+			protected.GET("/my-car-bookings", carBookingHandler.ListMyCarBookings)
+
+			// Car booking detail (all authenticated users)
+			protected.GET("/car-bookings/:id", carBookingHandler.GetCarBooking)
 
 			// Bookings
 			protected.GET("/bookings", bookingHandler.ListBookings)
@@ -153,67 +157,66 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB) (*services.BookingService, *se
 			protected.POST("/notifications/mark-all-as-read", notificationHandler.MarkAllAsRead)
 			protected.DELETE("/notifications/:id", notificationHandler.DeleteNotification)
 
-		// Calendar
-		protected.GET("/calendar", bookingHandler.GetCalendar)
-		protected.GET("/car-calendar", carRequestHandler.GetCalendarCarRequests)
+			// Calendar
+			protected.GET("/calendar", bookingHandler.GetCalendar)
+			protected.GET("/car-calendar", carRequestHandler.GetCalendarCarRequests)
 
-		// Room admin routes
-		roomAdmin := protected.Group("")
-		roomAdmin.Use(middleware.RequireRoomAdmin())
-		{
-			roomAdmin.POST("/rooms", roomHandler.CreateRoom)
-			roomAdmin.PUT("/rooms/:id", roomHandler.UpdateRoom)
-			roomAdmin.DELETE("/rooms/:id", roomHandler.DeleteRoom)
-			roomAdmin.POST("/rooms/:id/image", uploadHandler.UploadRoomImage)
-			roomAdmin.POST("/cars", carHandler.CreateCar)
-			roomAdmin.PUT("/cars/:id", carHandler.UpdateCar)
-			roomAdmin.DELETE("/cars/:id", carHandler.DeleteCar)
-			roomAdmin.POST("/cars/:id/image", carHandler.UpdateCarImage)
-			roomAdmin.PUT("/users/:id", userHandler.UpdateUser)
-			roomAdmin.DELETE("/users/:id", userHandler.DeleteUser)
-			roomAdmin.POST("/users/:id/reset-password", userHandler.ResetPassword)
-			roomAdmin.GET("/admin/settings", systemSettingHandler.GetSettings)
-			roomAdmin.PUT("/admin/settings", systemSettingHandler.UpdateSettings)
-		}
+			// Room admin routes
+			roomAdmin := protected.Group("")
+			roomAdmin.Use(middleware.RequireRoomAdmin())
+			{
+				roomAdmin.POST("/rooms", roomHandler.CreateRoom)
+				roomAdmin.PUT("/rooms/:id", roomHandler.UpdateRoom)
+				roomAdmin.DELETE("/rooms/:id", roomHandler.DeleteRoom)
+				roomAdmin.POST("/rooms/:id/image", uploadHandler.UploadRoomImage)
+				roomAdmin.POST("/cars", carHandler.CreateCar)
+				roomAdmin.PUT("/cars/:id", carHandler.UpdateCar)
+				roomAdmin.DELETE("/cars/:id", carHandler.DeleteCar)
+				roomAdmin.POST("/cars/:id/image", carHandler.UpdateCarImage)
+				roomAdmin.PUT("/users/:id", userHandler.UpdateUser)
+				roomAdmin.DELETE("/users/:id", userHandler.DeleteUser)
+				roomAdmin.POST("/users/:id/reset-password", userHandler.ResetPassword)
+				roomAdmin.GET("/admin/settings", systemSettingHandler.GetSettings)
+				roomAdmin.PUT("/admin/settings", systemSettingHandler.UpdateSettings)
+			}
 
-		// Room Admin & GA users routes
-		adminGA := protected.Group("")
-		adminGA.Use(middleware.RequireRole(models.RoleRoomAdmin, models.RoleGA))
-		{
-			adminGA.GET("/users", userHandler.ListUsers)
-			adminGA.GET("/users/:id", userHandler.GetUser)
-		}
+			// Room Admin & GA users routes
+			adminGA := protected.Group("")
+			adminGA.Use(middleware.RequireRole(models.RoleRoomAdmin, models.RoleGA))
+			{
+				adminGA.GET("/users", userHandler.ListUsers)
+				adminGA.GET("/users/:id", userHandler.GetUser)
+			}
 
-		// GA routes
-		ga := protected.Group("")
-		ga.Use(middleware.RequireGA())
-		{
-			ga.POST("/room-requests/:id/approve", requestHandler.ApproveRequest)
-			ga.POST("/room-requests/:id/reject", requestHandler.RejectRequest)
-			ga.GET("/room-requests/:id/available-rooms", requestHandler.GetAvailableRooms)
-			ga.DELETE("/bookings/:id", bookingHandler.CancelBooking)
-			ga.POST("/car-requests/:id/approve", carRequestHandler.ApproveCarRequest)
-			ga.POST("/car-requests/:id/reject", carRequestHandler.RejectCarRequest)
-			ga.GET("/car-requests/:id/available-cars", carRequestHandler.GetAvailableCars)
-			ga.POST("/car-bookings/:id/pickup", carBookingHandler.PickUpBooking)
-			ga.POST("/car-bookings/:id/return", carBookingHandler.ReturnBooking)
-			ga.PUT("/car-bookings/:id/status", carBookingHandler.UpdateBookingStatus)
-			ga.GET("/car-bookings", carBookingHandler.ListAllCarBookings)
+			// GA routes
+			ga := protected.Group("")
+			ga.Use(middleware.RequireGA())
+			{
+				ga.POST("/room-requests/:id/approve", requestHandler.ApproveRequest)
+				ga.POST("/room-requests/:id/reject", requestHandler.RejectRequest)
+				ga.GET("/room-requests/:id/available-rooms", requestHandler.GetAvailableRooms)
+				ga.DELETE("/bookings/:id", bookingHandler.CancelBooking)
+				ga.POST("/car-requests/:id/approve", carRequestHandler.ApproveCarRequest)
+				ga.POST("/car-requests/:id/reject", carRequestHandler.RejectCarRequest)
+				ga.GET("/car-requests/:id/available-cars", carRequestHandler.GetAvailableCars)
+				ga.POST("/car-bookings/:id/pickup", carBookingHandler.PickUpBooking)
+				ga.POST("/car-bookings/:id/return", carBookingHandler.ReturnBooking)
+				ga.PUT("/car-bookings/:id/status", carBookingHandler.UpdateBookingStatus)
+				ga.DELETE("/car-bookings/:id", carBookingHandler.CancelBooking)
+				ga.GET("/car-bookings", carBookingHandler.ListAllCarBookings)
+				ga.GET("/users/drivers", userHandler.GetDrivers)
 
-			// Driver assignment (GA only)
-			ga.PUT("/car-bookings/:id/driver", carBookingHandler.AssignDriver)
-			ga.DELETE("/car-bookings/:id/driver", carBookingHandler.UnassignDriver)
+				// Driver assignment (GA only)
+				ga.PUT("/car-bookings/:id/driver", carBookingHandler.AssignDriver)
+				ga.DELETE("/car-bookings/:id/driver", carBookingHandler.UnassignDriver)
 
-			// GA fleet dashboard
-			ga.GET("/admin/car-fleet-status", carBookingHandler.GetFleetStatus)
-		}
+				// GA fleet dashboard
+				ga.GET("/admin/car-fleet-status", carBookingHandler.GetFleetStatus)
+			}
 
-		// Close v1 group
+			// Close v1 group
 		}
 
 		return bookingService, carSchedulerService
 	}
 }
-
-
-

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCarRequests } from '@/hooks/useCars';
-import { Card, CardContent, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -115,7 +115,7 @@ export const MyCarRequestsPage = () => {
           <h1 className="text-2xl font-bold">My Car Requests</h1>
           <p className="text-muted-foreground">View and manage your vehicle booking requests</p>
         </div>
-        <Button onClick={() => navigate('/user/create-car-request')}>
+        <Button onClick={() => navigate('/user/car-requests/new')}>
           <Plus className="h-4 w-4 mr-2" />
           New Car Request
         </Button>
@@ -153,7 +153,7 @@ export const MyCarRequestsPage = () => {
             <p className="text-sm text-muted-foreground text-center mb-4">
               Get started by creating your first vehicle request
             </p>
-            <Button onClick={() => navigate('/user/create-car-request')}>
+            <Button onClick={() => navigate('/user/car-requests/new')}>
               <Plus className="h-4 w-4 mr-2" />
               Create Car Request
             </Button>

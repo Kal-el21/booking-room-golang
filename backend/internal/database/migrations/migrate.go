@@ -88,15 +88,15 @@ func addUserColumns(db *gorm.DB) error {
 
 // addCarTableColumns adds new columns to cars table
 func addCarTableColumns(db *gorm.DB) error {
-	// Rename location → garage_location if exists
-	if db.Migrator().HasColumn("cars", "location") && !db.Migrator().HasColumn("cars", "garage_location") {
-		if err := db.Exec("ALTER TABLE cars RENAME COLUMN location TO garage_location").Error; err != nil {
-			log.Printf("Warning: Failed to rename location column: %v", err)
+	// Rename garage_location → location if exists for consistency
+	if db.Migrator().HasColumn("cars", "garage_location") && !db.Migrator().HasColumn("cars", "location") {
+		if err := db.Exec("ALTER TABLE cars RENAME COLUMN garage_location TO location").Error; err != nil {
+			log.Printf("Warning: Failed to rename garage_location column: %v", err)
 		}
 	}
 
 	columns := map[string]string{
-		"garage_location":  "VARCHAR(255) NOT NULL DEFAULT ''",
+		"location":         "TEXT",
 		"plate_number":     "VARCHAR(50) UNIQUE",
 		"brand":            "VARCHAR(100)",
 		"model":            "VARCHAR(100)",
@@ -115,6 +115,13 @@ func addCarTableColumns(db *gorm.DB) error {
 		}
 	}
 
+	if err := db.Exec("UPDATE cars SET location = '' WHERE location IS NULL").Error; err != nil {
+		return fmt.Errorf("failed to backfill cars.location: %w", err)
+	}
+	if err := db.Exec("ALTER TABLE cars ALTER COLUMN location SET NOT NULL").Error; err != nil {
+		return fmt.Errorf("failed to set cars.location NOT NULL: %w", err)
+	}
+
 	return nil
 }
 
@@ -128,6 +135,7 @@ func addCarRequestColumns(db *gorm.DB) error {
 		"passenger_count":          "INTEGER",
 		"needs_fuel_reimbursement": "BOOLEAN DEFAULT FALSE",
 		"fuel_note":                "TEXT",
+		"ga_consumption_note":      "TEXT",
 	}
 
 	for col, colType := range columns {
@@ -237,8 +245,8 @@ func createIndexes(db *gorm.DB) error {
 		// NEW: Car indexes
 		{
 			table:   "cars",
-			name:    "idx_cars_garage_location",
-			columns: []string{"garage_location"},
+			name:    "idx_cars_location",
+			columns: []string{"location"},
 		},
 		{
 			table:   "cars",

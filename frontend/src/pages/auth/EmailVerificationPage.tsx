@@ -22,6 +22,7 @@ const getDashboardPath = (role: UserRole | string) => {
   switch (role) {
     case 'GA':         return '/ga/dashboard';
     case 'room_admin': return '/admin/dashboard';
+    case 'driver':     return '/driver/dashboard';
     default:           return '/user/dashboard';
   }
 };

@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import {
   Car as CarIcon, Plus, Edit, Trash2, Search, Users, MapPin,
-  Camera, Upload, ImageIcon, X, Fuel, Gauge, Cog,
+  Camera, Upload, ImageIcon, X, Fuel, Gauge,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Car, CreateCarInput, CarFilters } from '@/types';
@@ -112,7 +112,7 @@ export const ManageCarsPage = () => {
     transmission: '',
     fuel_type: '',
     capacity: '',
-    garage_location: '',
+    location: '',
     description: '',
     status: 'available' as 'available' | 'occupied' | 'maintenance',
     is_active: true,
@@ -180,7 +180,7 @@ export const ManageCarsPage = () => {
   const handleCreateClick = () => {
     setFormData({
       car_name: '', plate_number: '', brand: '', model: '', vehicle_type: '',
-      transmission: '', fuel_type: '', capacity: '', garage_location: '',
+      transmission: '', fuel_type: '', capacity: '', location: '',
       description: '', status: 'available', is_active: true,
     });
     setCreateImageFile(null);
@@ -199,7 +199,7 @@ export const ManageCarsPage = () => {
       transmission: car.transmission || '',
       fuel_type: car.fuel_type || '',
       capacity: car.capacity.toString(),
-      garage_location: car.garage_location || '',
+      location: car.location || '',
       description: car.description || '',
       status: car.status,
       is_active: car.is_active,
@@ -227,7 +227,7 @@ export const ManageCarsPage = () => {
         transmission: formData.transmission || undefined,
         fuel_type: formData.fuel_type || undefined,
         capacity: parseInt(formData.capacity),
-        garage_location: formData.garage_location || undefined,
+        location: formData.location || undefined,
         description: formData.description || undefined,
         is_active: formData.is_active,
       });
@@ -264,7 +264,7 @@ export const ManageCarsPage = () => {
           transmission: formData.transmission || undefined,
           fuel_type: formData.fuel_type || undefined,
           capacity: parseInt(formData.capacity),
-          garage_location: formData.garage_location || undefined,
+          location: formData.location || undefined,
           description: formData.description || undefined,
           status: formData.status,
           is_active: formData.is_active,
@@ -480,10 +480,10 @@ export const ManageCarsPage = () => {
                           <Users className="h-3 w-3 flex-shrink-0" />
                           {car.capacity} seats
                         </span>
-                        {car.garage_location && (
+                        {car.location && (
                           <span className="flex items-center gap-1">
                             <MapPin className="h-3 w-3 flex-shrink-0" />
-                            {car.garage_location}
+                            {car.location}
                           </span>
                         )}
                       </CardDescription>
@@ -636,12 +636,12 @@ export const ManageCarsPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="create-garage_location">Garage Location</Label>
+              <Label htmlFor="create-location">Location</Label>
               <Input
-                id="create-garage_location"
+                id="create-location"
                 placeholder="e.g., Floor 1, Parking Lot A"
-                value={formData.garage_location}
-                onChange={(e) => setFormData({ ...formData, garage_location: e.target.value })}
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
               />
             </div>
 
@@ -790,11 +790,11 @@ export const ManageCarsPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-garage_location">Garage Location</Label>
+              <Label htmlFor="edit-location">Location</Label>
               <Input
-                id="edit-garage_location"
-                value={formData.garage_location}
-                onChange={(e) => setFormData({ ...formData, garage_location: e.target.value })}
+                id="edit-location"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
               />
             </div>
 

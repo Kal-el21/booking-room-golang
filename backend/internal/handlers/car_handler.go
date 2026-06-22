@@ -1,7 +1,13 @@
 package handlers
 
 import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/middleware"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/services"
@@ -218,6 +224,11 @@ func (h *CarHandler) UpdateCarImage(c *gin.Context) {
 		return
 	}
 
+	if strings.HasPrefix(c.GetHeader("Content-Type"), "multipart/form-data") {
+		h.uploadCarImageFile(c, uint(id))
+		return
+	}
+
 	var input struct {
 		ImageURL string `json:"image_url" binding:"required"`
 	}
@@ -234,4 +245,73 @@ func (h *CarHandler) UpdateCarImage(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, "Car image updated successfully", car.ToResponse())
+}
+
+func (h *CarHandler) uploadCarImageFile(c *gin.Context, id uint) {
+	car, err := h.carService.GetCar(id)
+	if err != nil {
+		utils.ErrorResponse(c, 404, "Car not found", err.Error())
+		return
+	}
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxUploadSize)
+
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		utils.ErrorResponse(c, 400, "Failed to read file", "Please provide an image with field name 'image'")
+		return
+	}
+	defer file.Close()
+
+	if header.Size > MaxUploadSize {
+		utils.ErrorResponse(c, 400, "File too large", "Maximum file size is 5MB")
+		return
+	}
+
+	mimeType, err := detectMimeType(file)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "Failed to detect file type", err.Error())
+		return
+	}
+	ext, ok := allowedMimeTypes[mimeType]
+	if !ok {
+		utils.ErrorResponse(c, 400, "Invalid file type", "Only JPG, PNG, and WebP images are allowed")
+		return
+	}
+
+	filename := buildCarFilename(car.CarName, car.ID, car.PlateNumber, ext)
+	if err := ensureDir(CarUploadDir); err != nil {
+		utils.ErrorResponse(c, 500, "Failed to create upload directory", err.Error())
+		return
+	}
+
+	if car.ImageURL != nil && *car.ImageURL != "" {
+		_ = os.Remove("." + *car.ImageURL)
+	}
+
+	destPath := filepath.Join(CarUploadDir, filename)
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		utils.ErrorResponse(c, 500, "Failed to save file", err.Error())
+		return
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, file); err != nil {
+		utils.ErrorResponse(c, 500, "Failed to write file", err.Error())
+		return
+	}
+
+	imageURL := fmt.Sprintf("/uploads/cars/%s", filename)
+	updatedCar, err := h.carService.UpdateCarImage(id, imageURL)
+	if err != nil {
+		_ = os.Remove(destPath)
+		utils.ErrorResponse(c, 500, "Failed to update car image", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, "Car image uploaded successfully", gin.H{
+		"image_url": imageURL,
+		"car":       updatedCar.ToResponse(),
+	})
 }

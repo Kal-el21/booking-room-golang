@@ -19,11 +19,12 @@ func NewUserService(userRepo *repositories.UserRepository) *UserService {
 }
 
 type UpdateUserInput struct {
-	Name     *string          `json:"name"`
-	Email    *string          `json:"email"`
-	Role     *models.UserRole `json:"role"`
-	Division *string          `json:"division"`
-	IsActive *bool            `json:"is_active"`
+	Name          *string          `json:"name"`
+	Email         *string          `json:"email"`
+	Role          *models.UserRole `json:"role"`
+	Division      *string          `json:"division"`
+	DriverLicense *string         `json:"driver_license"`
+	IsActive      *bool           `json:"is_active"`
 }
 
 type ChangePasswordInput struct {
@@ -76,6 +77,9 @@ func (s *UserService) UpdateUser(id uint, input UpdateUserInput) (*models.User, 
 	}
 	if input.Division != nil {
 		user.Division = input.Division
+	}
+	if input.DriverLicense != nil {
+		user.DriverLicense = input.DriverLicense
 	}
 	if input.IsActive != nil {
 		user.IsActive = *input.IsActive
@@ -178,4 +182,8 @@ func (s *UserService) UpdateAvatar(userID uint, avatarURL string) (*models.User,
 	}
 
 	return s.userRepo.FindByID(userID)
+}
+
+func (s *UserService) GetDrivers() ([]models.User, error) {
+	return s.userRepo.GetDrivers()
 }

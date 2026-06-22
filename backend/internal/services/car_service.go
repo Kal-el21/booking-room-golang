@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Kal-el21/booking-room-golang/backend/internal/models"
@@ -20,20 +21,37 @@ func NewCarService(carRepo *repositories.CarRepository) *CarService {
 }
 
 type CreateCarInput struct {
-	CarName    string            `json:"car_name" binding:"required"`
-	Capacity   int               `json:"capacity" binding:"required,min=1"`
-	Location   string            `json:"location" binding:"required"`
-	Description *string           `json:"description"`
-	Status     models.CarStatus  `json:"status"`
+	CarName        string           `json:"car_name" binding:"required"`
+	Capacity       *int             `json:"capacity" binding:"omitempty,min=1"`      // Backward-compatible alias
+	SeatCapacity   *int             `json:"seat_capacity" binding:"omitempty,min=1"` // Preferred API field
+	Location       *string          `json:"location"`                                // Preferred API field
+	PlateNumber    *string          `json:"plate_number"`
+	Brand          *string          `json:"brand"`
+	Model          *string          `json:"model"`
+	VehicleType    *string          `json:"vehicle_type"`
+	Transmission   *string          `json:"transmission"`
+	FuelType       *string          `json:"fuel_type"`
+	CurrentOdometer *int            `json:"current_odometer" binding:"omitempty,min=0"`
+	Description    *string          `json:"description"`
+	Status         models.CarStatus `json:"status"`
+	IsActive       *bool            `json:"is_active"`
 }
 
 type UpdateCarInput struct {
-	CarName    *string            `json:"car_name"`
-	Capacity   *int               `json:"capacity" binding:"omitempty,min=1"`
-	Location   *string            `json:"location"`
-	Description *string            `json:"description"`
-	Status     *models.CarStatus  `json:"status"`
-	IsActive   *bool              `json:"is_active"`
+	CarName        *string           `json:"car_name"`
+	Capacity       *int              `json:"capacity" binding:"omitempty,min=1"`      // Backward-compatible alias
+	SeatCapacity   *int              `json:"seat_capacity" binding:"omitempty,min=1"` // Preferred API field
+	Location       *string           `json:"location"`                                // Preferred API field
+	PlateNumber    *string           `json:"plate_number"`
+	Brand          *string           `json:"brand"`
+	Model          *string           `json:"model"`
+	VehicleType    *string           `json:"vehicle_type"`
+	Transmission   *string           `json:"transmission"`
+	FuelType       *string           `json:"fuel_type"`
+	CurrentOdometer *int             `json:"current_odometer" binding:"omitempty,min=0"`
+	Description    *string           `json:"description"`
+	Status         *models.CarStatus `json:"status"`
+	IsActive       *bool             `json:"is_active"`
 }
 
 type CarCheckAvailabilityInput struct {
@@ -44,19 +62,46 @@ type CarCheckAvailabilityInput struct {
 
 // CreateCar creates a new car
 func (s *CarService) CreateCar(input CreateCarInput, createdBy uint) (*models.Car, error) {
+	capacity, err := resolveCarCapacity(input.Capacity, input.SeatCapacity)
+	if err != nil {
+		return nil, err
+	}
+
+	location, err := resolveCarLocation(input.Location)
+	if err != nil {
+		return nil, err
+	}
+
 	// Set default status if not provided
 	status := input.Status
 	if status == "" {
 		status = models.CarAvailable
 	}
 
+	isActive := true
+	if input.IsActive != nil {
+		isActive = *input.IsActive
+	}
+
+	currentOdometer := 0
+	if input.CurrentOdometer != nil {
+		currentOdometer = *input.CurrentOdometer
+	}
+
 	car := &models.Car{
 		CarName:        input.CarName,
-		SeatCapacity:   input.Capacity,
-		GarageLocation: input.Location,
+		SeatCapacity:   capacity,
+		Location:       location,
+		PlateNumber:    input.PlateNumber,
+		Brand:          input.Brand,
+		Model:          input.Model,
+		VehicleType:    input.VehicleType,
+		Transmission:   input.Transmission,
+		FuelType:       input.FuelType,
+		CurrentOdometer: currentOdometer,
 		Description:    input.Description,
 		Status:         status,
-		IsActive:       true,
+		IsActive:       isActive,
 		CreatedBy:      createdBy,
 	}
 
@@ -86,8 +131,32 @@ func (s *CarService) UpdateCar(id uint, input UpdateCarInput) (*models.Car, erro
 	if input.Capacity != nil {
 		car.SeatCapacity = *input.Capacity
 	}
+	if input.SeatCapacity != nil {
+		car.SeatCapacity = *input.SeatCapacity
+	}
 	if input.Location != nil {
-		car.GarageLocation = *input.Location
+		car.Location = *input.Location
+	}
+	if input.PlateNumber != nil {
+		car.PlateNumber = input.PlateNumber
+	}
+	if input.Brand != nil {
+		car.Brand = input.Brand
+	}
+	if input.Model != nil {
+		car.Model = input.Model
+	}
+	if input.VehicleType != nil {
+		car.VehicleType = input.VehicleType
+	}
+	if input.Transmission != nil {
+		car.Transmission = input.Transmission
+	}
+	if input.FuelType != nil {
+		car.FuelType = input.FuelType
+	}
+	if input.CurrentOdometer != nil {
+		car.CurrentOdometer = *input.CurrentOdometer
 	}
 	if input.Description != nil {
 		car.Description = input.Description
@@ -104,6 +173,26 @@ func (s *CarService) UpdateCar(id uint, input UpdateCarInput) (*models.Car, erro
 	}
 
 	return s.carRepo.FindByID(id)
+}
+
+func resolveCarCapacity(capacity, seatCapacity *int) (int, error) {
+	if seatCapacity != nil {
+		return *seatCapacity, nil
+	}
+	if capacity != nil {
+		return *capacity, nil
+	}
+	return 0, errors.New("seat_capacity or capacity is required")
+}
+
+func resolveCarLocation(location *string) (string, error) {
+	if location != nil {
+		value := strings.TrimSpace(*location)
+		if value != "" {
+			return value, nil
+		}
+	}
+	return "", errors.New("location is required")
 }
 
 // DeleteCar deletes car (soft delete) and removes image file

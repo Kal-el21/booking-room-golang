@@ -48,15 +48,25 @@ type CreateCarRequestInput struct {
 	Purpose          string  `json:"purpose" binding:"required"`
 	Notes            *string `json:"notes"`
 
+	// Travel information
+	Destination            *string `json:"destination"`
+	PickupLocation         *string `json:"pickup_location"`
+	DriverRequired         bool    `json:"driver_required"`
+	EstimatedDistanceKM    *int    `json:"estimated_distance_km" binding:"omitempty,min=0"`
+	PassengerCount         *int    `json:"passenger_count" binding:"omitempty,min=1"`
+	NeedsFuelReimbursement bool    `json:"needs_fuel_reimbursement"`
+	FuelNote               *string `json:"fuel_note"`
+
 	// Consumption
 	HasConsumption  bool    `json:"has_consumption"`
 	ConsumptionNote *string `json:"consumption_note"`
 
 	// Single or multi-day
-	BookingDate string  `json:"booking_date" binding:"required"` // YYYY-MM-DD
-	EndDate     *string `json:"end_date"`                        // YYYY-MM-DD (optional, for multi-day)
-	StartTime   string  `json:"start_time" binding:"required"`   // HH:MM
-	EndTime     string  `json:"end_time" binding:"required"`     // HH:MM
+	BookingDate   string  `json:"booking_date"`                  // YYYY-MM-DD
+	DepartureDate string  `json:"departure_date"`                // Backward-compatible alias for booking_date
+	EndDate       *string `json:"end_date"`                      // YYYY-MM-DD (optional, for multi-day)
+	StartTime     string  `json:"start_time" binding:"required"` // HH:MM
+	EndTime       string  `json:"end_time" binding:"required"`   // HH:MM
 
 	// Recurring
 	IsRecurring      bool    `json:"is_recurring"`
@@ -65,9 +75,17 @@ type CreateCarRequestInput struct {
 	RecurringEndDate *string `json:"recurring_end_date"` // YYYY-MM-DD
 }
 
+func (input CreateCarRequestInput) normalizedBookingDate() string {
+	if strings.TrimSpace(input.BookingDate) != "" {
+		return input.BookingDate
+	}
+	return input.DepartureDate
+}
+
 type ApproveCarRequestInput struct {
-	CarID          uint    `json:"car_id" binding:"required"`
-	ConsumptionNote *string `json:"consumption_note"` // GA can provide note about consumption availability
+	CarID             uint    `json:"car_id" binding:"required"`
+	GAConsumptionNote *string `json:"ga_consumption_note"`
+	DriverID          *uint   `json:"driver_id"`
 }
 
 type RejectCarRequestInput struct {
@@ -77,7 +95,12 @@ type RejectCarRequestInput struct {
 // CreateCarRequest creates a new car request
 func (s *CarRequestService) CreateCarRequest(input CreateCarRequestInput, userID uint) (*models.CarRequest, error) {
 	// Parse booking date
-	bookingDate, err := time.Parse("2006-01-02", input.BookingDate)
+	bookingDateInput := input.normalizedBookingDate()
+	if strings.TrimSpace(bookingDateInput) == "" {
+		return nil, errors.New("booking_date is required")
+	}
+
+	bookingDate, err := time.Parse("2006-01-02", bookingDateInput)
 	if err != nil {
 		return nil, errors.New("invalid booking date format (use YYYY-MM-DD)")
 	}
@@ -104,6 +127,10 @@ func (s *CarRequestService) CreateCarRequest(input CreateCarRequestInput, userID
 	// Validate time range
 	if !endTime.After(startTime) {
 		return nil, errors.New("end time must be after start time")
+	}
+
+	if err := validateCarTravelFields(input.RequiredCapacity, input.PassengerCount, input.EstimatedDistanceKM); err != nil {
+		return nil, err
 	}
 
 	// Parse end date for multi-day
@@ -162,36 +189,51 @@ func (s *CarRequestService) CreateCarRequest(input CreateCarRequestInput, userID
 			if input.RecurringDays == nil || *input.RecurringDays == "" {
 				return nil, errors.New("recurring_days is required for weekly recurring (e.g., '1,3,5' for Mon,Wed,Fri)")
 			}
+			if err := validateCarRecurringDays(input.RecurringDays); err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	// Create request
 	request := &models.CarRequest{
-		UserID:           userID,
-		RequiredCapacity: input.RequiredCapacity,
-		Purpose:          input.Purpose,
-		Notes:            input.Notes,
-		HasConsumption:   input.HasConsumption,
-		ConsumptionNote:  input.ConsumptionNote,
-		BookingDate:      bookingDate,
-		EndDate:          endDate,
-		StartTime:        startTime,
-		EndTime:          endTime,
-		IsRecurring:      input.IsRecurring,
-		RecurringType:    input.RecurringType,
-		RecurringDays:    input.RecurringDays,
-		RecurringEndDate: recurringEndDate,
-		Status:           models.CarRequestPending,
+		UserID:                 userID,
+		RequiredCapacity:       input.RequiredCapacity,
+		Purpose:                input.Purpose,
+		Notes:                  input.Notes,
+		Destination:            input.Destination,
+		PickupLocation:         input.PickupLocation,
+		DriverRequired:         input.DriverRequired,
+		EstimatedDistanceKM:    input.EstimatedDistanceKM,
+		PassengerCount:         input.PassengerCount,
+		NeedsFuelReimbursement: input.NeedsFuelReimbursement,
+		FuelNote:               input.FuelNote,
+		HasConsumption:         input.HasConsumption,
+		ConsumptionNote:        input.ConsumptionNote,
+		BookingDate:            bookingDate,
+		EndDate:                endDate,
+		StartTime:              startTime,
+		EndTime:                endTime,
+		IsRecurring:            input.IsRecurring,
+		RecurringType:          input.RecurringType,
+		RecurringDays:          input.RecurringDays,
+		RecurringEndDate:       recurringEndDate,
+		Status:                 models.CarRequestPending,
 	}
 
 	if err := s.requestRepo.Create(request); err != nil {
 		return nil, err
 	}
 
-	// Send notification to all GA users
-	go s.notifyGANewCarRequest(request)
+	createdRequest, err := s.requestRepo.FindByID(request.ID)
+	if err != nil {
+		return nil, err
+	}
 
-	return s.requestRepo.FindByID(request.ID)
+	// Send notification to all GA users
+	go s.notifyGANewCarRequest(createdRequest)
+
+	return createdRequest, nil
 }
 
 // GetCarRequest gets request by ID
@@ -214,12 +256,15 @@ func (s *CarRequestService) ListCarRequests(page, pageSize int, userID uint, use
 	if page < 1 {
 		page = 1
 	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 10
+	if pageSize < 1 || pageSize > 1000 {
+		pageSize = 100
+	}
+	if filters == nil {
+		filters = make(map[string]interface{})
 	}
 
-	// Regular users can only see their own requests
-	if userRole == models.RoleUser {
+	// Only GA can see every car request. Other authenticated roles see their own.
+	if userRole != models.RoleGA {
 		filters["user_id"] = userID
 	}
 
@@ -244,7 +289,12 @@ func (s *CarRequestService) UpdateCarRequest(id uint, input CreateCarRequestInpu
 	}
 
 	// Parse and validate dates
-	bookingDate, err := time.Parse("2006-01-02", input.BookingDate)
+	bookingDateInput := input.normalizedBookingDate()
+	if strings.TrimSpace(bookingDateInput) == "" {
+		return nil, errors.New("booking_date is required")
+	}
+
+	bookingDate, err := time.Parse("2006-01-02", bookingDateInput)
 	if err != nil {
 		return nil, errors.New("invalid booking date format")
 	}
@@ -265,15 +315,93 @@ func (s *CarRequestService) UpdateCarRequest(id uint, input CreateCarRequestInpu
 		return nil, errors.New("end time must be after start time")
 	}
 
+	// Validate date is not in the past
+	if bookingDate.Before(time.Now().Truncate(24 * time.Hour)) {
+		return nil, errors.New("booking date cannot be in the past")
+	}
+
+	if err := validateCarTravelFields(input.RequiredCapacity, input.PassengerCount, input.EstimatedDistanceKM); err != nil {
+		return nil, err
+	}
+
+	// Parse end date for multi-day
+	var endDate *time.Time
+	if input.EndDate != nil && *input.EndDate != "" {
+		parsed, err := time.Parse("2006-01-02", *input.EndDate)
+		if err != nil {
+			return nil, errors.New("invalid end date format (use YYYY-MM-DD)")
+		}
+		if parsed.Before(bookingDate) {
+			return nil, errors.New("end date must be after or equal to booking date")
+		}
+		duration := parsed.Sub(bookingDate).Hours() / 24
+		if duration > 30 {
+			return nil, errors.New("multi-day booking cannot exceed 30 days")
+		}
+		endDate = &parsed
+	}
+
+	// Parse recurring end date
+	var recurringEndDate *time.Time
+	if input.IsRecurring {
+		if input.RecurringEndDate == nil || *input.RecurringEndDate == "" {
+			return nil, errors.New("recurring_end_date is required for recurring bookings")
+		}
+		if input.RecurringType == nil || *input.RecurringType == "" {
+			return nil, errors.New("recurring_type is required for recurring bookings")
+		}
+
+		validTypes := map[string]bool{"daily": true, "weekly": true, "monthly": true}
+		if !validTypes[*input.RecurringType] {
+			return nil, errors.New("recurring_type must be: daily, weekly, or monthly")
+		}
+
+		parsed, err := time.Parse("2006-01-02", *input.RecurringEndDate)
+		if err != nil {
+			return nil, errors.New("invalid recurring_end_date format (use YYYY-MM-DD)")
+		}
+		if parsed.Before(bookingDate) {
+			return nil, errors.New("recurring_end_date must be after booking_date")
+		}
+
+		duration := parsed.Sub(bookingDate).Hours() / 24
+		if duration > 180 {
+			return nil, errors.New("recurring booking cannot exceed 6 months")
+		}
+
+		recurringEndDate = &parsed
+
+		if *input.RecurringType == "weekly" {
+			if input.RecurringDays == nil || *input.RecurringDays == "" {
+				return nil, errors.New("recurring_days is required for weekly recurring (e.g., '1,3,5' for Mon,Wed,Fri)")
+			}
+			if err := validateCarRecurringDays(input.RecurringDays); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	// Update request
 	request.RequiredCapacity = input.RequiredCapacity
 	request.Purpose = input.Purpose
 	request.Notes = input.Notes
+	request.Destination = input.Destination
+	request.PickupLocation = input.PickupLocation
+	request.DriverRequired = input.DriverRequired
+	request.EstimatedDistanceKM = input.EstimatedDistanceKM
+	request.PassengerCount = input.PassengerCount
+	request.NeedsFuelReimbursement = input.NeedsFuelReimbursement
+	request.FuelNote = input.FuelNote
 	request.HasConsumption = input.HasConsumption
 	request.ConsumptionNote = input.ConsumptionNote
 	request.BookingDate = bookingDate
+	request.EndDate = endDate
 	request.StartTime = startTime
 	request.EndTime = endTime
+	request.IsRecurring = input.IsRecurring
+	request.RecurringType = input.RecurringType
+	request.RecurringDays = input.RecurringDays
+	request.RecurringEndDate = recurringEndDate
 
 	if err := s.requestRepo.Update(request); err != nil {
 		return nil, err
@@ -343,8 +471,29 @@ func (s *CarRequestService) ApproveCarRequest(id uint, input ApproveCarRequestIn
 		return nil, fmt.Errorf("car capacity (%d) is less than required (%d)", car.SeatCapacity, request.RequiredCapacity)
 	}
 
+	// Validate driver if request requires driver
+	if request.DriverRequired {
+		if input.DriverID == nil || *input.DriverID == 0 {
+			tx.Rollback()
+			return nil, errors.New("driver is required for this request")
+		}
+		driver, err := s.userRepo.FindByID(*input.DriverID)
+		if err != nil {
+			tx.Rollback()
+			return nil, errors.New("driver not found")
+		}
+		if driver.Role != models.RoleDriver {
+			tx.Rollback()
+			return nil, errors.New("selected user is not a driver")
+		}
+	}
+
 	// Generate booking dates
 	bookingDates := s.generateCarBookingDates(request)
+	if len(bookingDates) == 0 {
+		tx.Rollback()
+		return nil, errors.New("request does not produce any booking dates")
+	}
 
 	// Check availability for all dates
 	for _, date := range bookingDates {
@@ -362,8 +511,8 @@ func (s *CarRequestService) ApproveCarRequest(id uint, input ApproveCarRequestIn
 	// Update request status and consumption note
 	request.Status = models.CarRequestApproved
 	request.AssignedBy = &approverID
-	if input.ConsumptionNote != nil && *input.ConsumptionNote != "" {
-		request.ConsumptionNote = input.ConsumptionNote
+	if input.GAConsumptionNote != nil && *input.GAConsumptionNote != "" {
+		request.GAConsumptionNote = input.GAConsumptionNote
 	}
 
 	if err := tx.Save(request).Error; err != nil {
@@ -373,13 +522,18 @@ func (s *CarRequestService) ApproveCarRequest(id uint, input ApproveCarRequestIn
 
 	// Create bookings for all dates
 	var firstBooking *models.CarBooking
+	var driverID *uint
+	if input.DriverID != nil && *input.DriverID > 0 {
+		driverID = input.DriverID
+	}
 	for _, date := range bookingDates {
 		plateSnapshot := car.PlateNumber
 		carNameSnapshot := car.CarName
 		booking := &models.CarBooking{
 			RequestID:           request.ID,
 			CarID:               input.CarID,
-			BookedBy:            approverID,
+			BookedBy:            request.UserID,
+			DriverID:            driverID,
 			DepartureDate:       date,
 			StartTime:           request.StartTime,
 			EndTime:             request.EndTime,
@@ -406,11 +560,16 @@ func (s *CarRequestService) ApproveCarRequest(id uint, input ApproveCarRequestIn
 		return nil, err
 	}
 
+	reloadedBooking, err := s.bookingRepo.FindByID(firstBooking.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	// Send notification to user
-	go s.notifyUserCarRequestApproved(request, firstBooking)
+	go s.notifyUserCarRequestApproved(request, reloadedBooking)
 
 	// Reload booking with relations
-	return s.bookingRepo.FindByID(firstBooking.ID)
+	return reloadedBooking, nil
 }
 
 // generateCarBookingDates generates all dates for multi-day and recurring bookings
@@ -508,6 +667,36 @@ func parseCarWeekdays(daysStr *string) []int {
 	return weekdays
 }
 
+func validateCarTravelFields(requiredCapacity int, passengerCount, estimatedDistanceKM *int) error {
+	if passengerCount != nil && *passengerCount > requiredCapacity {
+		return errors.New("passenger_count cannot exceed required_capacity")
+	}
+	if estimatedDistanceKM != nil && *estimatedDistanceKM < 0 {
+		return errors.New("estimated_distance_km cannot be negative")
+	}
+	return nil
+}
+
+func validateCarRecurringDays(daysStr *string) error {
+	if daysStr == nil || strings.TrimSpace(*daysStr) == "" {
+		return errors.New("recurring_days is required for weekly recurring")
+	}
+
+	for _, dayStr := range strings.Split(*daysStr, ",") {
+		dayStr = strings.TrimSpace(dayStr)
+		day, err := strconv.Atoi(dayStr)
+		if err != nil || day < 1 || day > 7 {
+			return errors.New("recurring_days must contain numbers from 1 to 7")
+		}
+	}
+
+	if len(parseCarWeekdays(daysStr)) == 0 {
+		return errors.New("recurring_days must contain at least one valid day")
+	}
+
+	return nil
+}
+
 // RejectCarRequest rejects request (GA only)
 func (s *CarRequestService) RejectCarRequest(id uint, input RejectCarRequestInput, rejecterID uint) (*models.CarRequest, error) {
 	request, err := s.requestRepo.FindByID(id)
@@ -546,12 +735,22 @@ func (s *CarRequestService) GetAvailableCarsForRequest(requestID uint) ([]models
 		return nil, err
 	}
 
-	return s.carRepo.GetAvailableCars(
+	bookingDates := s.generateCarBookingDates(request)
+	if len(bookingDates) == 0 {
+		return nil, errors.New("request does not produce any booking dates")
+	}
+
+	cars, err := s.carRepo.GetAvailableCarsForDates(
 		request.RequiredCapacity,
-		request.BookingDate,
+		bookingDates,
 		request.StartTime,
 		request.EndTime,
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	return cars, nil
 }
 
 // GetCalendarCarRequests gets calendar view of car bookings and requests
@@ -593,14 +792,14 @@ func (s *CarRequestService) notifyGANewCarRequest(request *models.CarRequest) {
 
 	for _, user := range gaUsers {
 		if user.Role == models.RoleGA {
-				notification := &models.Notification{
-					UserID:  user.ID,
-					Title:   "New Car Request",
-					Message: fmt.Sprintf("New car request from %s for %s", request.User.Name, request.Purpose),
-					Type:    models.NotifNewCarRequest,
-					Channel: models.ChannelInApp,
-				}
-				s.notificationSvc.CreateNotification(notification) // Broadcasts to SSE
+			notification := &models.Notification{
+				UserID:  user.ID,
+				Title:   "New Car Request",
+				Message: fmt.Sprintf("New car request from %s for %s", request.User.Name, request.Purpose),
+				Type:    models.NotifNewCarRequest,
+				Channel: models.ChannelInApp,
+			}
+			s.notificationSvc.CreateNotification(notification) // Broadcasts to SSE
 		}
 	}
 }
@@ -642,28 +841,28 @@ func (s *CarRequestService) createCarNotificationSchedules(booking *models.CarBo
 	// 24h before
 	bookingID := booking.ID
 	schedule24h := &models.NotificationSchedule{
-		BookingID:  &bookingID,
-		NotifyType: "24h_before",
-		NotifyAt:   bookingDateTime.Add(-24 * time.Hour),
-		Channel:    models.ChannelBoth,
+		CarBookingID: &bookingID,
+		NotifyType:   "24h_before",
+		NotifyAt:     bookingDateTime.Add(-24 * time.Hour),
+		Channel:      models.ChannelBoth,
 	}
 	s.notificationRepo.CreateSchedule(schedule24h)
 
 	// 3h before
 	schedule3h := &models.NotificationSchedule{
-		BookingID:  &bookingID,
-		NotifyType: "3h_before",
-		NotifyAt:   bookingDateTime.Add(-3 * time.Hour),
-		Channel:    models.ChannelBoth,
+		CarBookingID: &bookingID,
+		NotifyType:   "3h_before",
+		NotifyAt:     bookingDateTime.Add(-3 * time.Hour),
+		Channel:      models.ChannelBoth,
 	}
 	s.notificationRepo.CreateSchedule(schedule3h)
 
 	// 30m before
 	schedule30m := &models.NotificationSchedule{
-		BookingID:  &bookingID,
-		NotifyType: "30m_before",
-		NotifyAt:   bookingDateTime.Add(-30 * time.Minute),
-		Channel:    models.ChannelInApp,
+		CarBookingID: &bookingID,
+		NotifyType:   "30m_before",
+		NotifyAt:     bookingDateTime.Add(-30 * time.Minute),
+		Channel:      models.ChannelInApp,
 	}
 	s.notificationRepo.CreateSchedule(schedule30m)
 }

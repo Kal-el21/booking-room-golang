@@ -1,14 +1,15 @@
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useCreateCarRequest } from '@/hooks/useCars';
+import { useEffect, useState } from 'react';
+import { useNavigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { useCarRequest, useCreateCarRequest, useUpdateCarRequest } from '@/hooks/useCars';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, CalendarDays, Repeat, Calendar, CarIcon } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Repeat, Calendar, CarIcon, Fuel, Navigation, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import type { CreateCarRequestInput } from '@/types';
 
@@ -18,6 +19,13 @@ interface FormState {
   required_capacity: string;
   purpose: string;
   notes: string;
+  destination: string;
+  pickup_location: string;
+  driver_required: boolean;
+  estimated_distance_km: string;
+  passenger_count: string;
+  needs_fuel_reimbursement: boolean;
+  fuel_note: string;
   has_consumption: boolean;
   consumption_note: string;
   departure_date: string;
@@ -43,17 +51,30 @@ const DAYS_OF_WEEK = [
 export const CreateCarRequestPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const requestId = id ? parseInt(id) : undefined;
+  const isEditMode = !!requestId;
+  const { data: existingRequest, isLoading: isLoadingRequest } = useCarRequest(requestId || 0);
   const createCarRequest = useCreateCarRequest();
+  const updateCarRequest = useUpdateCarRequest();
 
   // Get initial values from location state (if coming from car card)
-  const initialCapacity = location.state?.capacity || '';
-  const initialCarId = location.state?.carId || '';
+  const initialCapacity = location.state?.capacity?.toString() || '';
+  const initialCarId = location.state?.carId?.toString() || searchParams.get('car_id') || '';
 
   const [bookingType, setBookingType] = useState<BookingType>('single');
   const [formData, setFormData] = useState<FormState>({
     required_capacity: initialCapacity || '',
     purpose: '',
     notes: '',
+    destination: '',
+    pickup_location: '',
+    driver_required: false,
+    estimated_distance_km: '',
+    passenger_count: '',
+    needs_fuel_reimbursement: false,
+    fuel_note: '',
     has_consumption: false,
     consumption_note: '',
     departure_date: format(new Date(), 'yyyy-MM-dd'),
@@ -61,10 +82,58 @@ export const CreateCarRequestPage = () => {
     start_time: '09:00',
     end_time: '17:00',
     is_recurring: false,
-    recurring_type: undefined,
+    recurring_type: 'weekly',
     recurring_days: [],
     recurring_end_date: '',
   });
+
+  useEffect(() => {
+    if (!existingRequest) return;
+
+    const nextBookingType: BookingType = existingRequest.is_recurring
+      ? 'recurring'
+      : existingRequest.end_date
+        ? 'multi'
+        : 'single';
+
+    setBookingType(nextBookingType);
+    setFormData({
+      required_capacity: existingRequest.required_capacity?.toString() || '',
+      purpose: existingRequest.purpose || '',
+      notes: existingRequest.notes || '',
+      destination: existingRequest.destination || '',
+      pickup_location: existingRequest.pickup_location || '',
+      driver_required: existingRequest.driver_required || false,
+      estimated_distance_km: existingRequest.estimated_distance_km?.toString() || '',
+      passenger_count: existingRequest.passenger_count?.toString() || '',
+      needs_fuel_reimbursement: existingRequest.needs_fuel_reimbursement || false,
+      fuel_note: existingRequest.fuel_note || '',
+      has_consumption: existingRequest.has_consumption || false,
+      consumption_note: existingRequest.consumption_note || '',
+      departure_date: existingRequest.departure_date || existingRequest.booking_date || format(new Date(), 'yyyy-MM-dd'),
+      end_date: existingRequest.end_date || '',
+      start_time: existingRequest.start_time || '09:00',
+      end_time: existingRequest.end_time || '17:00',
+      is_recurring: existingRequest.is_recurring || false,
+      recurring_type: existingRequest.recurring_type || 'weekly',
+      recurring_days: existingRequest.recurring_days
+        ? existingRequest.recurring_days.split(',').map((day) => day.trim()).filter(Boolean)
+        : [],
+      recurring_end_date: existingRequest.recurring_end_date || '',
+    });
+  }, [existingRequest]);
+
+  const handleBookingTypeChange = (type: BookingType) => {
+    setBookingType(type);
+    setFormData((prev) => ({
+      ...prev,
+      end_date: type === 'multi' ? prev.end_date : '',
+      is_recurring: type === 'recurring',
+      recurring_type: type === 'recurring' ? (prev.recurring_type || 'weekly') : 'weekly',
+      recurring_days: type === 'recurring' ? prev.recurring_days : [],
+      recurring_end_date: type === 'recurring' ? prev.recurring_end_date : '',
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,20 +142,39 @@ export const CreateCarRequestPage = () => {
       required_capacity: parseInt(formData.required_capacity),
       purpose: formData.purpose,
       notes: formData.notes || undefined,
+      destination: formData.destination || undefined,
+      pickup_location: formData.pickup_location || undefined,
+      driver_required: formData.driver_required,
+      estimated_distance_km: formData.estimated_distance_km
+        ? parseInt(formData.estimated_distance_km)
+        : undefined,
+      passenger_count: formData.passenger_count
+        ? parseInt(formData.passenger_count)
+        : undefined,
+      needs_fuel_reimbursement: formData.needs_fuel_reimbursement,
+      fuel_note: formData.needs_fuel_reimbursement ? formData.fuel_note || undefined : undefined,
       has_consumption: formData.has_consumption,
-      consumption_note: formData.consumption_note || undefined,
+      consumption_note: formData.has_consumption ? formData.consumption_note || undefined : undefined,
+      booking_date: formData.departure_date,
       departure_date: formData.departure_date,
       end_date: bookingType === 'multi' ? formData.end_date : undefined,
       start_time: formData.start_time,
       end_time: formData.end_time,
       is_recurring: bookingType === 'recurring',
       recurring_type: bookingType === 'recurring' ? formData.recurring_type : undefined,
-      recurring_days: bookingType === 'recurring' ? formData.recurring_days.join(',') : undefined,
+      recurring_days:
+        bookingType === 'recurring' && formData.recurring_type === 'weekly'
+          ? formData.recurring_days.join(',')
+          : undefined,
       recurring_end_date: bookingType === 'recurring' ? formData.recurring_end_date : undefined,
     };
 
     try {
-      await createCarRequest.mutateAsync(requestData);
+      if (isEditMode && requestId) {
+        await updateCarRequest.mutateAsync({ id: requestId, data: requestData });
+      } else {
+        await createCarRequest.mutateAsync(requestData);
+      }
       navigate('/user/car-requests');
     } catch {
       // Error handled in hook
@@ -103,6 +191,46 @@ export const CreateCarRequestPage = () => {
   };
 
   const minEndDate = bookingType === 'multi' ? formData.departure_date : undefined;
+  const requiredCapacity = parseInt(formData.required_capacity);
+  const passengerCount = formData.passenger_count ? parseInt(formData.passenger_count) : undefined;
+  const estimatedDistance = formData.estimated_distance_km ? parseInt(formData.estimated_distance_km) : undefined;
+  const isPassengerCountValid =
+    passengerCount === undefined ||
+    (!Number.isNaN(passengerCount) && passengerCount >= 1 && passengerCount <= requiredCapacity);
+  const isEstimatedDistanceValid =
+    estimatedDistance === undefined || (!Number.isNaN(estimatedDistance) && estimatedDistance >= 0);
+  const isBaseFormValid =
+    !Number.isNaN(requiredCapacity) &&
+    requiredCapacity >= 1 &&
+    formData.purpose.trim() !== '' &&
+    formData.departure_date !== '' &&
+    formData.start_time !== '' &&
+    formData.end_time !== '' &&
+    formData.end_time > formData.start_time &&
+    isPassengerCountValid &&
+    isEstimatedDistanceValid;
+  const isMultiDayValid =
+    bookingType !== 'multi' || (formData.end_date !== '' && formData.end_date >= formData.departure_date);
+  const isRecurringValid =
+    bookingType !== 'recurring' ||
+    (
+      !!formData.recurring_type &&
+      formData.recurring_end_date !== '' &&
+      formData.recurring_end_date >= formData.departure_date &&
+      (formData.recurring_type !== 'weekly' || formData.recurring_days.length > 0)
+    );
+  const isFormValid = isBaseFormValid && isMultiDayValid && isRecurringValid;
+  const isSaving = createCarRequest.isPending || updateCarRequest.isPending;
+  const canEditRequest = !isEditMode || existingRequest?.status === 'pending';
+
+  if (isEditMode && isLoadingRequest) {
+    return (
+      <div className="space-y-6 p-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-[520px] w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -111,17 +239,26 @@ export const CreateCarRequestPage = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">Request Car</h1>
-          <p className="text-muted-foreground">Submit a request to book a vehicle</p>
+          <h1 className="text-2xl font-bold">{isEditMode ? 'Edit Car Request' : 'Request Car'}</h1>
+          <p className="text-muted-foreground">
+            {isEditMode ? 'Update your pending vehicle request' : 'Submit a request to book a vehicle'}
+          </p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Booking Details</CardTitle>
-          <CardDescription>Fill in the details for your car booking request</CardDescription>
+          <CardDescription>
+            {isEditMode ? 'Review and adjust request details' : 'Fill in the details for your car booking request'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
+          {isEditMode && !canEditRequest && (
+            <div className="mb-6 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              Only pending car requests can be edited.
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Booking Type Tabs */}
             <div className="space-y-2">
@@ -130,7 +267,7 @@ export const CreateCarRequestPage = () => {
                 <Button
                   type="button"
                   variant={bookingType === 'single' ? 'default' : 'outline'}
-                  onClick={() => setBookingType('single')}
+                  onClick={() => handleBookingTypeChange('single')}
                   className="flex-1"
                 >
                   <CalendarDays className="h-4 w-4 mr-2" />
@@ -139,7 +276,7 @@ export const CreateCarRequestPage = () => {
                 <Button
                   type="button"
                   variant={bookingType === 'multi' ? 'default' : 'outline'}
-                  onClick={() => setBookingType('multi')}
+                  onClick={() => handleBookingTypeChange('multi')}
                   className="flex-1"
                 >
                   <Calendar className="h-4 w-4 mr-2" />
@@ -148,7 +285,7 @@ export const CreateCarRequestPage = () => {
                 <Button
                   type="button"
                   variant={bookingType === 'recurring' ? 'default' : 'outline'}
-                  onClick={() => setBookingType('recurring')}
+                  onClick={() => handleBookingTypeChange('recurring')}
                   className="flex-1"
                 >
                   <Repeat className="h-4 w-4 mr-2" />
@@ -158,7 +295,7 @@ export const CreateCarRequestPage = () => {
             </div>
 
             {/* Capacity & Car Info */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="capacity">Required Capacity *</Label>
                 <Input
@@ -171,6 +308,23 @@ export const CreateCarRequestPage = () => {
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="passenger_count">Passenger Count</Label>
+                <Input
+                  id="passenger_count"
+                  type="number"
+                  placeholder="Actual passengers"
+                  value={formData.passenger_count}
+                  onChange={(e) => setFormData({ ...formData, passenger_count: e.target.value })}
+                  min="1"
+                  max={formData.required_capacity || undefined}
+                />
+                {!isPassengerCountValid && (
+                  <p className="text-xs text-destructive">
+                    Passenger count cannot exceed required capacity
+                  </p>
+                )}
+              </div>
               {initialCarId && (
                 <div className="space-y-2">
                   <Label>Pre-selected Car</Label>
@@ -178,6 +332,86 @@ export const CreateCarRequestPage = () => {
                     <CarIcon className="h-4 w-4" />
                     <span className="text-sm">Car ID: {initialCarId}</span>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Trip Information */}
+            <div className="space-y-4 rounded-lg border p-4">
+              <div className="flex items-center gap-2">
+                <Navigation className="h-5 w-5 text-primary" />
+                <Label className="text-base">Trip Information</Label>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="destination">Destination</Label>
+                  <Input
+                    id="destination"
+                    placeholder="e.g., Client office, airport"
+                    value={formData.destination}
+                    onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pickup_location">Pickup Location</Label>
+                  <Input
+                    id="pickup_location"
+                    placeholder="e.g., Main lobby"
+                    value={formData.pickup_location}
+                    onChange={(e) => setFormData({ ...formData, pickup_location: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="estimated_distance_km">Estimated Distance (km)</Label>
+                  <Input
+                    id="estimated_distance_km"
+                    type="number"
+                    placeholder="Optional"
+                    value={formData.estimated_distance_km}
+                    onChange={(e) => setFormData({ ...formData, estimated_distance_km: e.target.value })}
+                    min="0"
+                  />
+                  {!isEstimatedDistanceValid && (
+                    <p className="text-xs text-destructive">
+                      Estimated distance cannot be negative
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <Label htmlFor="driver_required">Need Driver</Label>
+                  </div>
+                  <Switch
+                    id="driver_required"
+                    checked={formData.driver_required}
+                    onCheckedChange={(checked) => setFormData({ ...formData, driver_required: checked })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div className="flex items-center gap-2">
+                    <Fuel className="h-4 w-4 text-muted-foreground" />
+                    <Label htmlFor="needs_fuel_reimbursement">Fuel Reimbursement</Label>
+                  </div>
+                  <Switch
+                    id="needs_fuel_reimbursement"
+                    checked={formData.needs_fuel_reimbursement}
+                    onCheckedChange={(checked) => setFormData({ ...formData, needs_fuel_reimbursement: checked })}
+                  />
+                </div>
+              </div>
+              {formData.needs_fuel_reimbursement && (
+                <div className="space-y-2">
+                  <Label htmlFor="fuel_note">Fuel Note</Label>
+                  <Textarea
+                    id="fuel_note"
+                    placeholder="Add fuel reimbursement details..."
+                    value={formData.fuel_note}
+                    onChange={(e) => setFormData({ ...formData, fuel_note: e.target.value })}
+                    rows={2}
+                  />
                 </div>
               )}
             </div>
@@ -339,14 +573,14 @@ export const CreateCarRequestPage = () => {
               <Button type="button" variant="outline" onClick={() => navigate(-1)} className="flex-1">
                 Cancel
               </Button>
-              <Button type="submit" disabled={createCarRequest.isPending} className="flex-1">
-                {createCarRequest.isPending ? (
+              <Button type="submit" disabled={!isFormValid || !canEditRequest || isSaving} className="flex-1">
+                {isSaving ? (
                   <>
                     <Repeat className="h-4 w-4 mr-2 animate-spin" />
-                    Submitting...
+                    {isEditMode ? 'Saving...' : 'Submitting...'}
                   </>
                 ) : (
-                  'Submit Request'
+                  isEditMode ? 'Save Changes' : 'Submit Request'
                 )}
               </Button>
             </div>

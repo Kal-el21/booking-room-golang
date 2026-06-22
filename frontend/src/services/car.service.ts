@@ -1,8 +1,10 @@
 import api from './api';
-import type { Car, CarRequest, CarBooking, ApiResponse, PaginatedResponse, CreateCarRequestInput, ApproveCarRequestInput, RejectCarRequestInput } from '@/types';
+import type { Car, CarRequest, CarBooking, ApiResponse, PaginatedResponse, CreateCarRequestInput, ApproveCarRequestInput, RejectCarRequestInput, CalendarEvent } from '@/types';
+import { normalizeCar, normalizeCarBooking } from '@/utils/normalize';
 
 const CAR_PREFIX = '/api/v1/cars';
 const CAR_REQUEST_PREFIX = '/api/v1/car-requests';
+const CAR_CALENDAR_PREFIX = '/api/v1/car-calendar';
 
 export interface CarFilters {
   page?: number;
@@ -25,6 +27,31 @@ export interface CheckCarAvailabilityRequest {
   end_time: string;
 }
 
+const normalizeCarRequest = (request: any): CarRequest => ({
+  ...request,
+  departure_date: request.departure_date ?? request.booking_date,
+  booking_date: request.booking_date ?? request.departure_date,
+  driver_required: request.driver_required ?? false,
+  needs_fuel_reimbursement: request.needs_fuel_reimbursement ?? false,
+  bookings: request.bookings?.map(normalizeCarBooking),
+});
+
+const toCarPayload = (data: Partial<Car>) => ({
+  ...data,
+  seat_capacity: data.seat_capacity ?? data.capacity,
+});
+
+const toCarRequestPayload = (data: Partial<CreateCarRequestInput>) => {
+  const bookingDate = data.booking_date ?? data.departure_date;
+  const payload: Record<string, unknown> = {
+    ...data,
+    booking_date: bookingDate,
+  };
+
+  delete payload.departure_date;
+  return payload;
+};
+
 export const carService = {
   // Get all cars (public)
   getCars: async (filters?: CarFilters): Promise<PaginatedResponse<Car>> => {
@@ -39,13 +66,16 @@ export const carService = {
     const response = await api.get<PaginatedResponse<Car>>(
       `${CAR_PREFIX}?${params.toString()}`
     );
-    return response.data;
+    return {
+      ...response.data,
+      data: response.data.data.map(normalizeCar),
+    };
   },
 
   // Get car by ID
   getCarById: async (id: number): Promise<Car> => {
     const response = await api.get<ApiResponse<Car>>(`${CAR_PREFIX}/${id}`);
-    return response.data.data;
+    return normalizeCar(response.data.data);
   },
 
   // Check car availability
@@ -77,19 +107,19 @@ export const carService = {
     const response = await api.get<ApiResponse<Car[]>>(
       `${CAR_PREFIX}/available?${params.toString()}`
     );
-    return response.data.data;
+    return response.data.data.map(normalizeCar);
   },
 
   // Create car (room_admin only)
   createCar: async (data: Partial<Car>): Promise<Car> => {
-    const response = await api.post<ApiResponse<Car>>(CAR_PREFIX, data);
-    return response.data.data;
+    const response = await api.post<ApiResponse<Car>>(CAR_PREFIX, toCarPayload(data));
+    return normalizeCar(response.data.data);
   },
 
   // Update car (room_admin only)
   updateCar: async (id: number, data: Partial<Car>): Promise<Car> => {
-    const response = await api.put<ApiResponse<Car>>(`${CAR_PREFIX}/${id}`, data);
-    return response.data.data;
+    const response = await api.put<ApiResponse<Car>>(`${CAR_PREFIX}/${id}`, toCarPayload(data));
+    return normalizeCar(response.data.data);
   },
 
   // Delete car (room_admin only)
@@ -114,7 +144,10 @@ export const carService = {
         },
       }
     );
-    return response.data.data;
+    return {
+      ...response.data.data,
+      car: normalizeCar(response.data.data.car),
+    };
   },
 };
 
@@ -129,25 +162,28 @@ export const carRequestService = {
     const response = await api.get<PaginatedResponse<CarRequest>>(
       `${CAR_REQUEST_PREFIX}?${params.toString()}`
     );
-    return response.data;
+    return {
+      ...response.data,
+      data: response.data.data.map(normalizeCarRequest),
+    };
   },
 
   // Get car request by ID
   getCarRequestById: async (id: number): Promise<CarRequest> => {
     const response = await api.get<ApiResponse<CarRequest>>(`${CAR_REQUEST_PREFIX}/${id}`);
-    return response.data.data;
+    return normalizeCarRequest(response.data.data);
   },
 
   // Create car request (user)
   createCarRequest: async (data: CreateCarRequestInput): Promise<CarRequest> => {
-    const response = await api.post<ApiResponse<CarRequest>>(CAR_REQUEST_PREFIX, data);
-    return response.data.data;
+    const response = await api.post<ApiResponse<CarRequest>>(CAR_REQUEST_PREFIX, toCarRequestPayload(data));
+    return normalizeCarRequest(response.data.data);
   },
 
   // Update car request (user)
   updateCarRequest: async (id: number, data: Partial<CreateCarRequestInput>): Promise<CarRequest> => {
-    const response = await api.put<ApiResponse<CarRequest>>(`${CAR_REQUEST_PREFIX}/${id}`, data);
-    return response.data.data;
+    const response = await api.put<ApiResponse<CarRequest>>(`${CAR_REQUEST_PREFIX}/${id}`, toCarRequestPayload(data));
+    return normalizeCarRequest(response.data.data);
   },
 
   // Delete car request (user)
@@ -160,11 +196,18 @@ export const carRequestService = {
     requestId: number,
     data: ApproveCarRequestInput
   ): Promise<CarBooking> => {
+    const payload: any = {
+      car_id: data.car_id,
+      ga_consumption_note: data.ga_consumption_note,
+    };
+    if (data.driver_id) {
+      payload.driver_id = data.driver_id;
+    }
     const response = await api.post<ApiResponse<CarBooking>>(
       `${CAR_REQUEST_PREFIX}/${requestId}/approve`,
-      data
+      payload
     );
-    return response.data.data;
+    return normalizeCarBooking(response.data.data);
   },
 
   // Reject car request (GA)
@@ -180,6 +223,24 @@ export const carRequestService = {
     const response = await api.get<ApiResponse<Car[]>>(
       `${CAR_REQUEST_PREFIX}/${requestId}/available-cars`
     );
-    return response.data.data;
+    return response.data.data.map(normalizeCar);
+  },
+
+  // Get car calendar events
+  getCarCalendar: async (
+    startDate: string,
+    endDate: string,
+    carId?: number
+  ): Promise<CalendarEvent[]> => {
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate,
+    });
+    if (carId) params.append('car_id', carId.toString());
+
+    const response = await api.get<ApiResponse<CalendarEvent[]>>(
+      `${CAR_CALENDAR_PREFIX}?${params.toString()}`
+    );
+    return response.data.data ?? [];
   },
 };

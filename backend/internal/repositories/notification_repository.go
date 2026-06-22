@@ -24,7 +24,11 @@ func (r *NotificationRepository) Create(notification *models.Notification) error
 // FindByID finds notification by ID
 func (r *NotificationRepository) FindByID(id uint) (*models.Notification, error) {
 	var notification models.Notification
-	err := r.db.Preload("Booking").First(&notification, id).Error
+	err := r.db.
+		Preload("User").
+		Preload("Room").
+		Preload("Car").
+		First(&notification, id).Error
 	return &notification, err
 }
 
@@ -106,6 +110,10 @@ func (r *NotificationRepository) GetPendingSchedules() ([]models.NotificationSch
 		Preload("Booking.Request").
 		Preload("Booking.Request.User").
 		Preload("Booking.Room").
+		Preload("CarBooking").
+		Preload("CarBooking.Request").
+		Preload("CarBooking.Request.User").
+		Preload("CarBooking.Car").
 		Find(&schedules).Error
 	return schedules, err
 }

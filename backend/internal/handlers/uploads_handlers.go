@@ -20,6 +20,7 @@ const (
 	MaxUploadSize = 5 << 20 // 5 MB
 	UserUploadDir = "./internal/uploads/users"
 	RoomUploadDir = "./internal/uploads/rooms"
+	CarUploadDir  = "./internal/uploads/cars"
 )
 
 var allowedMimeTypes = map[string]string{
@@ -68,6 +69,20 @@ func buildRoomFilename(roomName string, capacity int, location, ext string) stri
 		sanitizeFilename(roomName),
 		sanitizeFilename(fmt.Sprintf("%d", capacity)),
 		sanitizeFilename(location),
+	}
+	return fmt.Sprintf("%s_%d%s", strings.Join(parts, "_"), time.Now().Unix(), ext)
+}
+
+// buildCarFilename builds: {car_name}_{plate_or_id}_{timestamp}.{ext}
+func buildCarFilename(carName string, carID uint, plateNumber *string, ext string) string {
+	plateOrID := fmt.Sprintf("car_%d", carID)
+	if plateNumber != nil && strings.TrimSpace(*plateNumber) != "" {
+		plateOrID = *plateNumber
+	}
+
+	parts := []string{
+		sanitizeFilename(carName),
+		sanitizeFilename(plateOrID),
 	}
 	return fmt.Sprintf("%s_%d%s", strings.Join(parts, "_"), time.Now().Unix(), ext)
 }

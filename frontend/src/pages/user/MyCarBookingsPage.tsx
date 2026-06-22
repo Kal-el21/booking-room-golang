@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import { useCarBookings } from '@/hooks/useCars';
+import { useMyCarBookings } from '@/hooks/useCars';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DoorOpen, Calendar, Clock, Car as CarIcon, Fuel, Gauge, MapPin, User } from 'lucide-react';
-import { format, parseISO, isPast, isToday, isFuture, startOfDay } from 'date-fns';
-import { formatCarBookingDateRange, formatPickupTime, formatReturnTime, getKmTraveled, getCarBookingStatusLabel, getCarBookingStatusConfig } from '@/utils/dateHelpers';
-import type { CarBooking, CarBookingStatus } from '@/types';
+import { Calendar, Clock, Car as CarIcon, Fuel, Gauge, MapPin, User } from 'lucide-react';
+import { parseISO, isPast, isToday, isFuture, startOfDay } from 'date-fns';
+import { formatCarBookingDateRange, formatPickupTime, getKmTraveled, getCarBookingStatusLabel, getCarBookingStatusConfig } from '@/utils/dateHelpers';
+import type { CarBooking } from '@/types';
 
 export const MyCarBookingsPage = () => {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'all'>('all');
-  const { data: bookingsData, isLoading } = useCarBookings();
+  const { data: bookingsData, isLoading } = useMyCarBookings();
 
   const bookings = (bookingsData?.data || []) as CarBooking[];
 
@@ -44,7 +44,6 @@ export const MyCarBookingsPage = () => {
 
   const BookingCard = ({ booking }: { booking: CarBooking }) => {
     const km = getKmTraveled(booking.start_odometer, booking.end_odometer);
-    const isDriverAssigned = !!booking.driver_id;
     const isPickedUp = !!booking.picked_up_at;
     const isReturned = !!booking.returned_at;
 
@@ -196,7 +195,7 @@ export const MyCarBookingsPage = () => {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as CarBookingStatus)} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upcoming' | 'past' | 'all')} className="space-y-4">
         <TabsList>
           <TabsTrigger value="all">All ({bookings.length})</TabsTrigger>
           <TabsTrigger value="upcoming">Upcoming ({upcomingBookings.length})</TabsTrigger>

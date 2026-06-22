@@ -51,5 +51,7 @@ tmp/
 
 internal/uploads/users/*
 internal/uploads/rooms/*
+internal/uploads/cars/*
 !internal/uploads/users/.gitkeep
 !internal/uploads/rooms/.gitkeep
+!internal/uploads/cars/.gitkeep

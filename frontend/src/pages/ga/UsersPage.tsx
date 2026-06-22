@@ -30,6 +30,7 @@ export const UsersPage = () => {
       user: { variant: 'secondary', label: 'User' },
       room_admin: { variant: 'default', label: 'Room Admin' },
       GA: { variant: 'outline', label: 'GA' },
+      driver: { variant: 'outline', label: 'Driver' },
     };
     const { variant, label } = config[role] || config.user;
     return <Badge variant={variant}>{label}</Badge>;
@@ -90,6 +91,7 @@ export const UsersPage = () => {
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="room_admin">Room Admin</SelectItem>
                   <SelectItem value="GA">GA</SelectItem>
+                  <SelectItem value="driver">Driver</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -98,7 +100,7 @@ export const UsersPage = () => {
       </Card>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -142,6 +144,18 @@ export const UsersPage = () => {
           <CardContent>
             <div className="text-2xl font-bold">
               {allUsers.filter((u) => u.role === 'GA').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Drivers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {allUsers.filter((u) => u.role === 'driver').length}
             </div>
           </CardContent>
         </Card>

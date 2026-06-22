@@ -22,8 +22,9 @@ import { MyBookingsPage } from './pages/user/MyBookingsPage';
 import { MyCarBookingsPage } from './pages/user/MyCarBookingsPage';
 import { CarsPage } from './pages/user/CarsPage';
 import { CreateCarRequestPage } from './pages/user/CreateCarRequestPage';
+import { CarRequestDetailPage } from './pages/user/CarRequestDetailPage';
 import { MyCarRequestsPage } from './pages/user/MyCarRequestsPage';
-import { CarCalendarPage } from './pages/user/CarCalendarPage';
+import { CarCalendarPage } from './pages/CarCalendarPage';
 
 // GA Pages
 import { GADashboard } from './pages/ga/GADashboard';
@@ -34,6 +35,9 @@ import { AllCarBookingsPage } from './pages/ga/AllCarBookingsPage';
 import { UsersPage as GAUsersPage } from './pages/ga/UsersPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { SettingsPage } from './pages/SettingsPage';
+
+// Driver Pages
+import { DriverDashboard } from './pages/driver/DriverDashboard';
 
 // Admin Pages
 import { AdminDashboard } from './pages/admin/AdminDashboard';
@@ -84,8 +88,11 @@ function App() {
                   <Route path="car-bookings" element={<MyCarBookingsPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="cars" element={<CarsPage />} />
+                  <Route path="create-car-request" element={<Navigate to="/user/car-requests/new" replace />} />
                   <Route path="car-requests" element={<MyCarRequestsPage />} />
                   <Route path="car-requests/new" element={<CreateCarRequestPage />} />
+                  <Route path="car-requests/:id" element={<CarRequestDetailPage />} />
+                  <Route path="car-requests/:id/edit" element={<CreateCarRequestPage />} />
                   <Route path="car-calendar" element={<CarCalendarPage />} />
                   <Route path="profile" element={<SettingsPage />} />
                 </Route>
@@ -110,7 +117,22 @@ function App() {
                   <Route path="profile" element={<SettingsPage />} />
                 </Route>
 
-                {/* ── Room Admin Routes ─────────────────────────────── */}
+                {/* Driver Routes */}
+                <Route
+                  path="/driver/*"
+                  element={
+                    <ProtectedRoute allowedRoles={['driver']}>
+                      <DashboardLayout />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="dashboard" element={<DriverDashboard />} />
+                  <Route path="car-bookings" element={<DriverDashboard />} />
+                  <Route path="car-calendar" element={<CarCalendarPage />} />
+                  <Route path="profile" element={<SettingsPage />} />
+                </Route>
+
+                {/* Room Admin Routes */}
                 <Route
                   path="/admin/*"
                   element={

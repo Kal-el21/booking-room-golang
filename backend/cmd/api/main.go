@@ -11,6 +11,7 @@ import (
 	"github.com/Kal-el21/booking-room-golang/backend/internal/database"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/database/migrations"
 	"github.com/Kal-el21/booking-room-golang/backend/internal/routes"
+	"github.com/Kal-el21/booking-room-golang/backend/internal/services"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -113,8 +114,8 @@ func main() {
 		})
 	})
 
-	// Setup routes (scheduler started internally)
-	bookingService, _ := routes.SetupRoutes(router, database.GetDB())
+	// Setup routes
+	bookingService, carSchedulerService := routes.SetupRoutes(router, database.GetDB())
 
 	// Start background job for booking auto-completion
 	go func() {
@@ -129,6 +130,12 @@ func main() {
 				log.Printf("Error in background job: %v", err)
 			}
 		}
+	}()
+
+	go func() {
+		log.Println("Starting background job: car booking lifecycle")
+		carSchedulerService.RunOverdueCheck()
+		services.StartCarScheduler(carSchedulerService)
 	}()
 
 	// Start server

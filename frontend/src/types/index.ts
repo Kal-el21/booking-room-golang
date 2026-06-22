@@ -7,6 +7,7 @@ export interface User {
   email: string;
   role: UserRole;
   division?: string;
+  driver_license?: string;
   is_active: boolean;
   avatar?: string;
   email_verified_at?: string;
@@ -85,6 +86,7 @@ export interface UserResponse {
   email: string;
   role: UserRole;
   division?: string;
+  driver_license?: string;
   is_active: boolean;
   avatar?: string;
   email_verified_at?: string;
@@ -131,9 +133,9 @@ export interface Car {
   vehicle_type?: string;
   transmission?: string;
   fuel_type?: string;
+  seat_capacity: number;
   capacity: number;
-  garage_location?: string;
-  location?: string;
+  location: string;
   description?: string;
   image_url?: string;
   status: 'available' | 'occupied' | 'maintenance';
@@ -142,7 +144,7 @@ export interface Car {
   creator?: UserResponse;
   current_odometer?: number;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface CarResponse {
@@ -154,9 +156,9 @@ export interface CarResponse {
   vehicle_type?: string;
   transmission?: string;
   fuel_type?: string;
+  seat_capacity: number;
   capacity: number;
-  garage_location?: string;
-  location?: string;
+  location: string;
   description?: string;
   image_url?: string;
   status: 'available' | 'occupied' | 'maintenance';
@@ -165,7 +167,7 @@ export interface CarResponse {
   creator?: UserResponse;
   current_odometer?: number;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface CreateCarInput {
@@ -176,9 +178,12 @@ export interface CreateCarInput {
   vehicle_type?: string;
   transmission?: string;
   fuel_type?: string;
+  seat_capacity?: number;
   capacity: number;
-  garage_location?: string;
+  location?: string;
+  current_odometer?: number;
   description?: string;
+  status: 'available' | 'occupied' | 'maintenance';
   is_active?: boolean;
 }
 
@@ -209,9 +214,17 @@ export interface CarRequest {
   required_capacity: number;
   purpose: string;
   notes?: string;
+  destination?: string;
+  pickup_location?: string;
+  driver_required: boolean;
+  estimated_distance_km?: number;
+  passenger_count?: number;
+  needs_fuel_reimbursement: boolean;
+  fuel_note?: string;
   has_consumption: boolean;
   consumption_note?: string;
   departure_date: string;
+  booking_date?: string;
   end_date?: string;
   start_time: string;
   end_time: string;
@@ -232,8 +245,16 @@ export interface CreateCarRequestInput {
   required_capacity: number;
   purpose: string;
   notes?: string;
+  destination?: string;
+  pickup_location?: string;
+  driver_required?: boolean;
+  estimated_distance_km?: number;
+  passenger_count?: number;
+  needs_fuel_reimbursement?: boolean;
+  fuel_note?: string;
   has_consumption?: boolean;
   consumption_note?: string;
+  booking_date?: string;
   departure_date: string;
   end_date?: string;
   start_time: string;
@@ -246,8 +267,8 @@ export interface CreateCarRequestInput {
 
 export interface ApproveCarRequestInput {
   car_id: number;
-  departure_date: string;
-  consumption_note?: string;
+  ga_consumption_note?: string;
+  driver_id?: number;
 }
 
 export interface RejectCarRequestInput {
@@ -266,16 +287,25 @@ export interface CarBooking {
   id: number;
   request_id: number;
   car_id: number;
+  car_name?: string;
   car_name_snapshot?: string;
+  plate_number?: string;
   plate_number_snapshot?: string;
   car?: CarResponse;
   booked_by: number;
   booked_by_user?: UserResponse;
+  request?: Partial<CarRequest>;
   departure_date: string;
   booking_date?: string;
+  end_date?: string;
+  request_booking_date?: string;
+  request_end_date?: string;
+  request_is_recurring?: boolean;
+  request_recurring_end_date?: string;
+  request_duration?: number;
   start_time: string;
   end_time: string;
-  status: 'confirmed' | 'picked_up' | 'in_use' | 'returned' | 'late_return' | 'cancelled';
+  status: 'confirmed' | 'picked_up' | 'in_use' | 'returned' | 'late_return' | 'cancelled' | 'completed';
   driver_id?: number;
   driver_name?: string;
   driver?: UserResponse;
@@ -291,6 +321,18 @@ export interface CarBooking {
 }
 
 export type CarBookingStatus = CarBooking['status'];
+
+export interface PickUpBookingInput {
+  driver_id?: number;
+  pickup_location?: string;
+  start_odometer: number;
+}
+
+export interface ReturnBookingInput {
+  end_odometer: number;
+  fuel_level_return: number;
+  return_notes?: string;
+}
 
 export interface AssignDriverInput {
   driver_id: number;
@@ -325,6 +367,7 @@ export interface CarBookingFilters {
   page_size?: number;
   status?: CarBookingStatus;
   car_id?: number;
+  booking_date?: string;
   departure_date?: string;
 }
 
@@ -406,7 +449,7 @@ export interface RequestFilters {
   status?: RequestStatusFilter;
 }
 
-// ─── Calendar ─────────────────────────────────────────────────────────────────
+// ─── Calendar ────────────────────────────────────────────────────────────────────
 
 export interface CalendarEvent {
   id: number | string;
@@ -418,6 +461,7 @@ export interface CalendarEvent {
   room_name?: string;
   car_id?: number;
   car_name?: string;
+  location?: string;
   status: string;
   user_name: string;
   purpose: string;
@@ -441,8 +485,7 @@ export type NotificationType =
   | 'new_car_request'
   | 'car_booking_confirmed'
   | 'car_booking_rejected'
-  | 'car_pickup_recorded'
-  | 'car_return_recorded';
+  | 'car_booking_cancelled';
 
 export type NotificationChannel = 'email' | 'in_app' | 'both';
 
@@ -450,7 +493,7 @@ export interface Notification {
   id: number;
   user_id: number;
   booking_id?: number;
-  request_id?: number;
+  car_booking_id?: number;
   title: string;
   message: string;
   type: NotificationType;

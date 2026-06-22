@@ -18,7 +18,7 @@ type Car struct {
 	ID              uint           `gorm:"primaryKey;autoIncrement" json:"id"`
 	CarName         string         `gorm:"type:varchar(255);not null" json:"car_name" binding:"required"`
 	SeatCapacity    int            `gorm:"not null" json:"seat_capacity" binding:"required,min=1"`
-	GarageLocation  string         `gorm:"type:varchar(255);not null" json:"garage_location" binding:"required"`
+	Location        string         `gorm:"type:varchar(255);not null" json:"location" binding:"required"`
 	PlateNumber     *string        `gorm:"type:varchar(50);unique" json:"plate_number,omitempty"`
 	Brand           *string        `gorm:"type:varchar(100)" json:"brand,omitempty"`
 	Model           *string        `gorm:"type:varchar(100)" json:"model,omitempty"`
@@ -37,7 +37,7 @@ type Car struct {
 
 	// Relationships
 	Creator  User         `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
-	Bookings []CarBooking  `gorm:"foreignKey:CarID" json:"bookings,omitempty"`
+	Bookings []CarBooking `gorm:"foreignKey:CarID" json:"bookings,omitempty"`
 }
 
 // TableName specifies table name
@@ -52,23 +52,23 @@ func (c *Car) IsAvailable() bool {
 
 // CarResponse for API responses
 type CarResponse struct {
-	ID              uint     `json:"id"`
-	CarName         string   `json:"car_name"`
-	SeatCapacity    int      `json:"seat_capacity"`
-	GarageLocation  string   `json:"garage_location"`
-	PlateNumber     *string  `json:"plate_number,omitempty"`
-	Brand           *string  `json:"brand,omitempty"`
-	Model           *string  `json:"model,omitempty"`
-	VehicleType     *string  `json:"vehicle_type,omitempty"`
-	Transmission    *string  `json:"transmission,omitempty"`
-	FuelType        *string  `json:"fuel_type,omitempty"`
-	CurrentOdometer int      `json:"current_odometer"`
-	Description     *string  `json:"description"`
-	ImageURL        *string  `json:"image_url"`
-	Status          CarStatus `json:"status"`
-	IsActive        bool     `json:"is_active"`
-	CreatedBy       uint     `json:"created_by"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              uint          `json:"id"`
+	CarName         string        `json:"car_name"`
+	SeatCapacity    int           `json:"seat_capacity"`
+	Location        string        `json:"location"`
+	PlateNumber     *string       `json:"plate_number,omitempty"`
+	Brand           *string       `json:"brand,omitempty"`
+	Model           *string       `json:"model,omitempty"`
+	VehicleType     *string       `json:"vehicle_type,omitempty"`
+	Transmission    *string       `json:"transmission,omitempty"`
+	FuelType        *string       `json:"fuel_type,omitempty"`
+	CurrentOdometer int           `json:"current_odometer"`
+	Description     *string       `json:"description"`
+	ImageURL        *string       `json:"image_url"`
+	Status          CarStatus     `json:"status"`
+	IsActive        bool          `json:"is_active"`
+	CreatedBy       uint          `json:"created_by"`
+	CreatedAt       time.Time     `json:"created_at"`
 	Creator         *UserResponse `json:"creator,omitempty"`
 }
 
@@ -78,7 +78,7 @@ func (c *Car) ToResponse() CarResponse {
 		ID:              c.ID,
 		CarName:         c.CarName,
 		SeatCapacity:    c.SeatCapacity,
-		GarageLocation:  c.GarageLocation,
+		Location:        c.Location,
 		PlateNumber:     c.PlateNumber,
 		Brand:           c.Brand,
 		Model:           c.Model,

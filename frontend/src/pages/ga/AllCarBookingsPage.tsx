@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useCarBookings, usePickUpBooking, useReturnBooking, useUpdateCarBookingStatus, useAssignDriver, useUnassignDriver } from '@/hooks/useCars';
+import { useCarBookings, usePickUpBooking, useReturnBooking, useUpdateCarBookingStatus, useAssignDriver, useUnassignDriver, useCancelCarBooking } from '@/hooks/useCars';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,15 +11,97 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Search, Car as CarIcon, Calendar, Clock, MapPin, User, Gauge, Fuel,
-  CheckCircle, XCircle, RefreshCw, UserPlus, UserMinus, FileText, Car,
+  RefreshCw, UserPlus, UserMinus, FileText, XCircle,
 } from 'lucide-react';
-import { format, parseISO, isFuture, isToday, startOfDay } from 'date-fns';
 import {
-  formatCarBookingDateRange, formatPickupTime, formatReturnTime,
+  formatCarBookingDateRange, formatPickupTime,
   getKmTraveled, getCarBookingStatusLabel, getCarBookingStatusConfig,
+  canCancelCarBooking,
 } from '@/utils/dateHelpers';
+import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import type { CarBooking, CarBookingStatus, PickUpBookingInput, ReturnBookingInput } from '@/types';
+
+const statusOverrideOptions: Record<CarBookingStatus, CarBookingStatus[]> = {
+  confirmed: ['cancelled'],
+  picked_up: ['confirmed'],
+  in_use: ['confirmed'],
+  returned: [],
+  late_return: ['returned'],
+  cancelled: [],
+  completed: [],
+};
+
+const getStatusOverrideOptions = (status: CarBookingStatus) => statusOverrideOptions[status] ?? [];
+
+const getDateValue = (value?: string) => {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const formatGroupedCarBookingDateRange = (bookings: CarBooking[]) => {
+  const first = bookings[0];
+  const start = first.request_booking_date || first.departure_date || first.booking_date;
+  if (!start) return 'N/A';
+
+  if (first.request_is_recurring) {
+    if (!first.request_recurring_end_date) {
+      return format(parseISO(start), 'MMM dd, yyyy');
+    }
+    return `${format(parseISO(start), 'MMM dd, yyyy')} – ${format(parseISO(first.request_recurring_end_date), 'MMM dd, yyyy')}`;
+  }
+
+  const end = first.request_end_date || first.end_date || bookings[bookings.length - 1].departure_date;
+  if (end && end !== start) {
+    return `${format(parseISO(start), 'MMM dd')} – ${format(parseISO(end), 'MMM dd, yyyy')}`;
+  }
+
+  return format(parseISO(start), 'MMM dd, yyyy');
+};
+
+const getCarBookingStatusSummary = (bookings: CarBooking[]) => {
+  const counts: Record<string, number> = {};
+  bookings.forEach((booking) => {
+    counts[booking.status] = (counts[booking.status] || 0) + 1;
+  });
+
+  return Object.entries(counts)
+    .map(([status, count]) => `${count} ${getCarBookingStatusLabel(status)}`)
+    .join(', ');
+};
+
+const getCarBookingDriverSummary = (bookings: CarBooking[]) => {
+  const drivers = Array.from(new Set(bookings.map((booking) => booking.driver_name).filter(Boolean)));
+  return drivers.length > 0 ? drivers.join(', ') : 'No driver assigned';
+};
+
+const groupCarBookings = (bookings: CarBooking[]) => {
+  const groups = new Map<number, CarBooking[]>();
+
+  bookings.forEach((booking) => {
+    const key = booking.request_id || booking.id;
+    const group = groups.get(key) || [];
+    group.push(booking);
+    groups.set(key, group);
+  });
+
+  return Array.from(groups.values())
+    .map((groupBookings) => {
+      const sorted = [...groupBookings].sort((a, b) => getDateValue(a.departure_date) - getDateValue(b.departure_date));
+      const representative = sorted[0];
+
+      return {
+        request_id: representative.request_id,
+        bookings: sorted,
+        representative,
+        dateRange: formatGroupedCarBookingDateRange(sorted),
+        statusSummary: getCarBookingStatusSummary(sorted),
+        driverSummary: getCarBookingDriverSummary(sorted),
+      };
+    })
+    .sort((a, b) => getDateValue(a.representative.departure_date) - getDateValue(b.representative.departure_date));
+};
 
 export const AllCarBookingsPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -27,10 +109,12 @@ export const AllCarBookingsPage = () => {
   const [pickupDialogOpen, setPickupDialogOpen] = useState(false);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [statusOverrideOpen, setStatusOverrideOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [expandedRequestIds, setExpandedRequestIds] = useState<number[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<CarBooking | null>(null);
   const [pickupInput, setPickupInput] = useState<PickUpBookingInput>({ start_odometer: 0 });
   const [returnInput, setReturnInput] = useState<ReturnBookingInput>({ end_odometer: 0, fuel_level_return: 100 });
-  const [overrideStatus, setOverrideStatus] = useState<string>('');
+  const [overrideStatus, setOverrideStatus] = useState<CarBookingStatus | ''>('');
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -48,6 +132,7 @@ export const AllCarBookingsPage = () => {
   const updateBookingStatus = useUpdateCarBookingStatus();
   const assignDriver = useAssignDriver();
   const unassignDriver = useUnassignDriver();
+  const cancelCarBooking = useCancelCarBooking();
 
   // ── Pickup handler ────────────────────────────────────────────────────────
 
@@ -100,8 +185,9 @@ export const AllCarBookingsPage = () => {
   // ── Status override handler ─────────────────────────────────────────────────
 
   const handleStatusOverrideClick = (booking: CarBooking) => {
+    const options = getStatusOverrideOptions(booking.status);
     setSelectedBooking(booking);
-    setOverrideStatus(booking.status);
+    setOverrideStatus(options[0] ?? '');
     setStatusOverrideOpen(true);
   };
 
@@ -142,16 +228,49 @@ export const AllCarBookingsPage = () => {
     }
   };
 
+  const canCancel = (booking: CarBooking) => {
+    return canCancelCarBooking(booking);
+  };
+
+  const toggleExpandedRequest = (requestId: number) => {
+    setExpandedRequestIds((current) =>
+      current.includes(requestId)
+        ? current.filter((id) => id !== requestId)
+        : [...current, requestId]
+    );
+  };
+
+  const isExpandedRequest = (requestId: number) => expandedRequestIds.includes(requestId);
+
+  const handleCancelClick = (booking: CarBooking) => {
+    setSelectedBooking(booking);
+    setCancelDialogOpen(true);
+  };
+
+  const handleCancel = async () => {
+    if (!selectedBooking) return;
+    try {
+      await cancelCarBooking.mutateAsync(selectedBooking.id);
+      setCancelDialogOpen(false);
+      setSelectedBooking(null);
+    } catch {
+      // Error handled in hook
+    }
+  };
+
   // ── Derived data ───────────────────────────────────────────────────────────
 
   const bookings = bookingsData?.data || [];
   const allBookings = allBookingsData?.data || [];
+  const selectedOverrideOptions = selectedBooking ? getStatusOverrideOptions(selectedBooking.status) : [];
 
   const filteredBookings = bookings.filter((b: CarBooking) =>
     (b.car_name_snapshot || b.car?.car_name || '')
       .toLowerCase()
       .includes(searchTerm.toLowerCase())
   );
+
+  const groupedBookings = groupCarBookings(filteredBookings);
 
   // ── Status badge ───────────────────────────────────────────────────────────
 
@@ -246,7 +365,10 @@ export const AllCarBookingsPage = () => {
 
       {/* Results count */}
       <p className="text-sm text-muted-foreground">
-        Showing <span className="font-medium">{filteredBookings.length}</span> bookings
+        Showing <span className="font-medium">{groupedBookings.length}</span> booking groups
+        {filteredBookings.length !== groupedBookings.length && (
+          <span> ({filteredBookings.length} daily bookings)</span>
+        )}
       </p>
 
       {/* Booking Cards */}
@@ -266,14 +388,16 @@ export const AllCarBookingsPage = () => {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {filteredBookings.map((booking: CarBooking) => {
+          {groupedBookings.map((group) => {
+            const booking = group.representative;
+            const expanded = isExpandedRequest(group.request_id);
             const km = getKmTraveled(booking.start_odometer, booking.end_odometer);
             const canPickUp = booking.status === 'confirmed';
             const canReturn = booking.status === 'picked_up' || booking.status === 'in_use';
             const isReturned = !!booking.returned_at;
 
             return (
-              <Card key={booking.id} className="hover:shadow-md transition-shadow">
+              <Card key={group.request_id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -283,6 +407,11 @@ export const AllCarBookingsPage = () => {
                           {booking.car_name_snapshot || booking.car?.car_name || `Car #${booking.car_id}`}
                         </CardTitle>
                         {getStatusBadge(booking.status)}
+                        {group.bookings.length > 1 && (
+                          <Badge variant="outline" className="text-xs">
+                            {group.bookings.length} days
+                          </Badge>
+                        )}
                         {booking.driver_id && (
                           <Badge variant="outline" className="text-xs">
                             <User className="h-3 w-3 mr-1" />
@@ -294,7 +423,7 @@ export const AllCarBookingsPage = () => {
                         <div className="flex items-center gap-4 text-sm flex-wrap">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {formatCarBookingDateRange(booking)}
+                            {group.dateRange}
                           </span>
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -307,91 +436,235 @@ export const AllCarBookingsPage = () => {
                             {booking.plate_number_snapshot}
                           </div>
                         )}
-                        {booking.driver_name && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <User className="h-3 w-3" />
-                            Driver: {booking.driver_name}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1 text-sm">
+                          <FileText className="h-3 w-3" />
+                          Status: {group.statusSummary}
+                        </div>
+                        <div className="flex items-center gap-1 text-sm">
+                          <User className="h-3 w-3" />
+                          Driver: {group.driverSummary}
+                        </div>
                       </CardDescription>
                     </div>
+                    {group.bookings.length > 1 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => toggleExpandedRequest(group.request_id)}
+                      >
+                        {expanded ? 'Hide details' : 'Show details'}
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-3">
-                  {/* Lifecycle info */}
-                  {booking.picked_up_at && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Gauge className="h-4 w-4 text-green-600" />
-                      <span>
-                        Picked up at {booking.pickup_location || '—'} · Odometer {booking.start_odometer?.toLocaleString()} km
-                        {' '}({formatPickupTime(booking.picked_up_at)})
-                      </span>
-                    </div>
-                  )}
+                  {expanded ? (
+                    <div className="space-y-3">
+                      {group.bookings.map((dailyBooking) => {
+                        const dailyKm = getKmTraveled(dailyBooking.start_odometer, dailyBooking.end_odometer);
+                        const dailyCanPickUp = dailyBooking.status === 'confirmed';
+                        const dailyCanReturn = dailyBooking.status === 'picked_up' || dailyBooking.status === 'in_use';
+                        const dailyIsReturned = !!dailyBooking.returned_at;
 
-                  {isReturned && (
+                        return (
+                          <div key={dailyBooking.id} className="rounded-lg border p-3 space-y-3">
+                            <div className="flex items-start justify-between gap-3 flex-wrap">
+                              <div className="space-y-1">
+                                <div className="font-medium">
+                                  {format(parseISO(dailyBooking.departure_date), 'MMM dd, yyyy')}
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {getStatusBadge(dailyBooking.status)}
+                                  {dailyBooking.driver_name && (
+                                    <span className="text-sm text-muted-foreground">
+                                      <User className="h-3 w-3 inline mr-1" />
+                                      {dailyBooking.driver_name}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {canCancel(dailyBooking) && (
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleCancelClick(dailyBooking)}
+                                  >
+                                    <XCircle className="h-4 w-4 mr-2" />
+                                    Cancel
+                                  </Button>
+                                )}
+                                {dailyCanPickUp && (
+                                  <Button size="sm" onClick={() => handlePickupClick(dailyBooking)}>
+                                    <Gauge className="h-4 w-4 mr-2" />
+                                    Pickup
+                                  </Button>
+                                )}
+                                {dailyCanReturn && (
+                                  <Button size="sm" variant="outline" onClick={() => handleReturnClick(dailyBooking)}>
+                                    <RefreshCw className="h-4 w-4 mr-2" />
+                                    Return
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleStatusOverrideClick(dailyBooking)}
+                                  disabled={getStatusOverrideOptions(dailyBooking.status).length === 0}
+                                >
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Status
+                                </Button>
+                                {dailyBooking.driver_id ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleUnassignDriver(dailyBooking)}
+                                  >
+                                    <UserMinus className="h-4 w-4 mr-2" />
+                                    Unassign
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleAssignDriver(dailyBooking)}
+                                    disabled={!dailyBooking.driver_id}
+                                  >
+                                    <UserPlus className="h-4 w-4 mr-2" />
+                                    Assign
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+
+                            {dailyBooking.picked_up_at && (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Gauge className="h-4 w-4 text-green-600" />
+                                <span>
+                                  Picked up at {dailyBooking.pickup_location || '—'} · Odometer {dailyBooking.start_odometer?.toLocaleString()} km
+                                  {' '}({formatPickupTime(dailyBooking.picked_up_at)})
+                                </span>
+                              </div>
+                            )}
+
+                            {dailyIsReturned && (
+                              <>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Gauge className="h-4 w-4" />
+                                  <span>
+                                    Returned · End odometer {dailyBooking.end_odometer?.toLocaleString()} km
+                                    {dailyKm !== null && (
+                                      <span className="ml-1 font-medium">({dailyKm.toLocaleString()} km travelled)</span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Fuel className="h-4 w-4" />
+                                  <span>Fuel on return: {dailyBooking.fuel_level_return}%</span>
+                                </div>
+                                {dailyBooking.return_notes && (
+                                  <p className="text-xs text-muted-foreground italic">
+                                    Note: {dailyBooking.return_notes}
+                                  </p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
                     <>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Gauge className="h-4 w-4" />
-                        <span>
-                          Returned · End odometer {booking.end_odometer?.toLocaleString()} km
-                          {km !== null && (
-                            <span className="ml-1 font-medium">({km.toLocaleString()} km travelled)</span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Fuel className="h-4 w-4" />
-                        <span>Fuel on return: {booking.fuel_level_return}%</span>
-                      </div>
-                      {booking.return_notes && (
-                        <p className="text-xs text-muted-foreground italic">
-                          Note: {booking.return_notes}
-                        </p>
+                      {booking.picked_up_at && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Gauge className="h-4 w-4 text-green-600" />
+                          <span>
+                            Picked up at {booking.pickup_location || '—'} · Odometer {booking.start_odometer?.toLocaleString()} km
+                            {' '}({formatPickupTime(booking.picked_up_at)})
+                          </span>
+                        </div>
                       )}
+
+                      {isReturned && (
+                        <>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Gauge className="h-4 w-4" />
+                            <span>
+                              Returned · End odometer {booking.end_odometer?.toLocaleString()} km
+                              {km !== null && (
+                                <span className="ml-1 font-medium">({km.toLocaleString()} km travelled)</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Fuel className="h-4 w-4" />
+                            <span>Fuel on return: {booking.fuel_level_return}%</span>
+                          </div>
+                          {booking.return_notes && (
+                            <p className="text-xs text-muted-foreground italic">
+                              Note: {booking.return_notes}
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      <div className="flex flex-wrap gap-2 pt-2 border-t mt-2">
+                        {canCancel(booking) && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleCancelClick(booking)}
+                          >
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancel Booking
+                          </Button>
+                        )}
+                        {canPickUp && (
+                          <Button size="sm" onClick={() => handlePickupClick(booking)}>
+                            <Gauge className="h-4 w-4 mr-2" />
+                            Record Pickup
+                          </Button>
+                        )}
+                        {canReturn && (
+                          <Button size="sm" variant="outline" onClick={() => handleReturnClick(booking)}>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Record Return
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleStatusOverrideClick(booking)}
+                          disabled={getStatusOverrideOptions(booking.status).length === 0}
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Override Status
+                        </Button>
+                        {booking.driver_id ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleUnassignDriver(booking)}
+                          >
+                            <UserMinus className="h-4 w-4 mr-2" />
+                            Unassign Driver
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleAssignDriver(booking)}
+                            disabled={!booking.driver_id}
+                          >
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Assign Driver
+                          </Button>
+                        )}
+                      </div>
                     </>
                   )}
-
-                  {/* GA Actions */}
-                  <div className="flex flex-wrap gap-2 pt-2 border-t mt-2">
-                    {canPickUp && (
-                      <Button size="sm" onClick={() => handlePickupClick(booking)}>
-                        <Gauge className="h-4 w-4 mr-2" />
-                        Record Pickup
-                      </Button>
-                    )}
-                    {canReturn && (
-                      <Button size="sm" variant="outline" onClick={() => handleReturnClick(booking)}>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Record Return
-                      </Button>
-                    )}
-                    <Button size="sm" variant="ghost" onClick={() => handleStatusOverrideClick(booking)}>
-                      <FileText className="h-4 w-4 mr-2" />
-                      Override Status
-                    </Button>
-                    {booking.driver_id ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleUnassignDriver(booking)}
-                      >
-                        <UserMinus className="h-4 w-4 mr-2" />
-                        Unassign Driver
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleAssignDriver(booking)}
-                        disabled={!booking.driver_id}
-                      >
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        Assign Driver
-                      </Button>
-                    )}
-                  </div>
                 </CardContent>
               </Card>
             );
@@ -522,17 +795,22 @@ export const AllCarBookingsPage = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="override_status">New Status</Label>
-                <Select value={overrideStatus} onValueChange={setOverrideStatus}>
-                  <SelectTrigger id="override_status">
+                <Select value={overrideStatus} onValueChange={(value) => setOverrideStatus(value as CarBookingStatus)}>
+                  <SelectTrigger id="override_status" disabled={selectedOverrideOptions.length === 0}>
                     <SelectValue placeholder="Select new status…" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="picked_up">Picked Up</SelectItem>
-                    <SelectItem value="in_use">In Use</SelectItem>
-                    <SelectItem value="returned">Returned</SelectItem>
-                    <SelectItem value="late_return">Late Return</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    {selectedOverrideOptions.length > 0 ? (
+                      selectedOverrideOptions.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {getCarBookingStatusLabel(status)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        No valid status override
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -540,12 +818,45 @@ export const AllCarBookingsPage = () => {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setStatusOverrideOpen(false)}>Cancel</Button>
-            <Button onClick={handleStatusOverrideSubmit} disabled={updateBookingStatus.isPending || !overrideStatus}>
+            <Button onClick={handleStatusOverrideSubmit} disabled={updateBookingStatus.isPending || !overrideStatus || selectedOverrideOptions.length === 0}>
               {updateBookingStatus.isPending ? 'Updating…' : 'Update Status'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
+       {/* ── Cancel Confirmation Dialog ───────────────────────────────────────────── */}
+       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+         <DialogContent>
+           <DialogHeader>
+             <DialogTitle>Cancel Booking?</DialogTitle>
+             <DialogDescription>
+               Are you sure you want to cancel this car booking? This action cannot be undone.
+             </DialogDescription>
+           </DialogHeader>
+
+           {selectedBooking && (
+             <div className="space-y-2 py-4">
+               <p><span className="font-medium">Car:</span> {selectedBooking.car_name_snapshot || selectedBooking.car?.car_name}</p>
+               <p><span className="font-medium">Date:</span> {formatCarBookingDateRange(selectedBooking)}</p>
+               <p><span className="font-medium">Time:</span> {selectedBooking.start_time} – {selectedBooking.end_time}</p>
+             </div>
+           )}
+
+           <DialogFooter>
+             <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
+               Keep Booking
+             </Button>
+             <Button
+               variant="destructive"
+               onClick={handleCancel}
+               disabled={cancelCarBooking.isPending}
+             >
+               {cancelCarBooking.isPending ? 'Cancelling…' : 'Cancel Booking'}
+             </Button>
+           </DialogFooter>
+         </DialogContent>
+       </Dialog>
+     </div>
   );
 };

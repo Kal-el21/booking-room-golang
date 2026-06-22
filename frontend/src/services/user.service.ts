@@ -13,6 +13,7 @@ export interface UserFilters {
 export interface UpdateProfileData {
   name?: string;
   division?: string;
+  driver_license?: string;
   avatar?: File; // optional photo file
 }
 
@@ -45,6 +46,7 @@ export const userService = {
 
     if (data.name !== undefined) formData.append('name', data.name);
     if (data.division !== undefined) formData.append('division', data.division);
+    if (data.driver_license !== undefined) formData.append('driver_license', data.driver_license);
     if (data.avatar) formData.append('avatar', data.avatar);
 
     const response = await api.put<ApiResponse<User>>(
@@ -97,8 +99,14 @@ export const userService = {
     await api.post(`${USER_PREFIX}/${id}/reset-password`, { new_password: newPassword });
   },
 
-  // Delete user (room_admin)
-  deleteUser: async (id: number): Promise<void> => {
-    await api.delete(`${USER_PREFIX}/${id}`);
-  },
+// Delete user (room_admin)
+   deleteUser: async (id: number): Promise<void> => {
+     await api.delete(`${USER_PREFIX}/${id}`);
+   },
+
+   // Get all drivers (GA)
+   getDrivers: async (): Promise<User[]> => {
+     const response = await api.get<ApiResponse<User[]>>(`${USER_PREFIX}/drivers`);
+     return response.data.data;
+   },
 };

@@ -99,7 +99,7 @@ const CarsPageContent = () => {
           <Button variant="outline" onClick={() => navigate('/user/car-requests')}>
             My Requests
           </Button>
-          <Button onClick={() => navigate('/user/create-car-request')}>
+          <Button onClick={() => navigate('/user/car-requests/new')}>
             Request Car
           </Button>
         </div>
@@ -199,7 +199,7 @@ const CarsPageContent = () => {
             <p className="text-sm text-muted-foreground text-center mb-4">
               {searchTerm ? 'Try adjusting your search term' : 'No cars available in the system'}
             </p>
-            <Button onClick={() => navigate('/user/create-car-request')}>
+            <Button onClick={() => navigate('/user/car-requests/new')}>
               Request a Car
             </Button>
           </CardContent>
@@ -262,7 +262,9 @@ const CarsPageContent = () => {
                         variant="outline"
                         size="sm"
                         className="flex-1"
-                        onClick={() => navigate(`/user/create-car-request?car_id=${car.id}`)}
+                        onClick={() => navigate('/user/car-requests/new', {
+                          state: { carId: car.id, capacity: car.capacity },
+                        })}
                       >
                         Request
                       </Button>

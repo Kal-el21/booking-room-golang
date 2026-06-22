@@ -64,6 +64,7 @@ export const SettingsPage = () => {
   const [profileData, setProfileData] = useState({
     name: user?.name || '',
     division: user?.division || '',
+    driver_license: user?.driver_license || '',
   });
 
   // ── Password state ───────────────────────────────────────────
@@ -104,7 +105,7 @@ export const SettingsPage = () => {
 
     if (!isEditingProfile) {
       setIsEditingProfile(true);
-      setProfileData({ name: user?.name || '', division: user?.division || '' });
+      setProfileData({ name: user?.name || '', division: user?.division || '', driver_license: user?.driver_license || '' });
     }
   };
 
@@ -113,7 +114,7 @@ export const SettingsPage = () => {
     setAvatarFile(null);
     setAvatarPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    setProfileData({ name: user?.name || '', division: user?.division || '' });
+    setProfileData({ name: user?.name || '', division: user?.division || '', driver_license: user?.driver_license || '' });
   };
 
   const onUpdateProfile = async (e: React.FormEvent) => {
@@ -122,6 +123,7 @@ export const SettingsPage = () => {
       await updateProfile.mutateAsync({
         name: profileData.name,
         division: profileData.division,
+        driver_license: profileData.driver_license,
         avatar: avatarFile ?? undefined,
       });
       await refreshUser();
@@ -220,7 +222,7 @@ export const SettingsPage = () => {
                   size="sm"
                   onClick={() => {
                     setIsEditingProfile(true);
-                    setProfileData({ name: user.name, division: user.division || '' });
+                    setProfileData({ name: user.name, division: user.division || '', driver_license: user.driver_license || '' });
                   }}
                 >
                   <Edit2 className="h-4 w-4 mr-2" />
@@ -304,6 +306,20 @@ export const SettingsPage = () => {
                       className={!isEditingProfile ? 'bg-muted' : ''}
                     />
                   </div>
+
+                  {user.role === 'driver' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="driver_license">Driver License</Label>
+                      <Input
+                        id="driver_license"
+                        value={isEditingProfile ? profileData.driver_license : (user.driver_license || 'Not set')}
+                        onChange={(e) => setProfileData((prev) => ({ ...prev, driver_license: e.target.value }))}
+                        readOnly={!isEditingProfile}
+                        className={!isEditingProfile ? 'bg-muted' : ''}
+                        placeholder="e.g., SIM A 123456789"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Account Created</Label>
@@ -561,8 +577,8 @@ export const SettingsPage = () => {
                       {sysPrefs.email_verification_enabled && (
                         <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3">
                           <p className="text-xs text-blue-800 dark:text-blue-300">
-                          ℹ️ Make sure the SMTP configuration is correctly set on the server so OTP emails can be delivered.
-                            Check the <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">SMTP_*</code> variables in your <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">.env</code> file.
+                            ℹ️ Make sure the SMTP configuration is correctly set on the server so OTP emails can be delivered.
+                              Check the <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">SMTP_*</code> variables in your <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">.env</code> file.
                           </p>
                         </div>
                       )}

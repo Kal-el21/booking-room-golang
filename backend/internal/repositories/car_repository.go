@@ -53,10 +53,10 @@ func (r *CarRepository) List(page, pageSize int, filters map[string]interface{})
 		query = query.Where("is_active = ?", isActive)
 	}
 	if minCapacity, ok := filters["min_capacity"]; ok {
-		query = query.Where("capacity >= ?", minCapacity)
+		query = query.Where("seat_capacity >= ?", minCapacity)
 	}
 	if location, ok := filters["location"]; ok {
-		query = query.Where("garage_location ILIKE ?", "%"+location.(string)+"%")
+		query = query.Where("location ILIKE ?", "%"+location.(string)+"%")
 	}
 
 	// Count total
@@ -88,7 +88,34 @@ func (r *CarRepository) GetAvailableCars(capacity int, bookingDate time.Time, st
 
 	// Find available cars
 	err := r.db.
-		Where("capacity >= ?", capacity).
+		Where("seat_capacity >= ?", capacity).
+		Where("status = ?", models.CarAvailable).
+		Where("is_active = ?", true).
+		Where("id NOT IN (?)", subQuery).
+		Preload("Creator").
+		Find(&cars).Error
+
+	return cars, err
+}
+
+// GetAvailableCarsForDates gets cars available for booking on all specified dates and time range
+func (r *CarRepository) GetAvailableCarsForDates(capacity int, bookingDates []time.Time, startTime, endTime time.Time) ([]models.Car, error) {
+	var cars []models.Car
+
+	blockedStatuses := []models.CarBookingStatus{models.CarBookingConfirmed, models.CarBookingPickedUp, models.CarBookingInUse}
+
+	subQuery := r.db.Model(&models.CarBooking{}).
+		Select("car_id").
+		Where("departure_date IN ?", bookingDates).
+		Where("status IN ?", blockedStatuses).
+		Where("(start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?)",
+			endTime, startTime,
+			endTime, endTime,
+			startTime, endTime,
+		)
+
+	err := r.db.
+		Where("seat_capacity >= ?", capacity).
 		Where("status = ?", models.CarAvailable).
 		Where("is_active = ?", true).
 		Where("id NOT IN (?)", subQuery).

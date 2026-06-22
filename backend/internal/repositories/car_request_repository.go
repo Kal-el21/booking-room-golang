@@ -32,7 +32,7 @@ func (r *CarRequestRepository) FindByID(id uint) (*models.CarRequest, error) {
 	err := r.db.
 		Preload("User").
 		Preload("Assigner").
-		Preload("Bookings.Car").         // Load bookings with car info
+		Preload("Bookings.Car").          // Load bookings with car info
 		Preload("Bookings.BookedByUser"). // Load who booked it
 		First(&request, id).Error
 	return &request, err
@@ -73,7 +73,7 @@ func (r *CarRequestRepository) List(page, pageSize int, filters map[string]inter
 	err := query.
 		Preload("User").
 		Preload("Assigner").
-		Preload("Bookings").      // Changed from Booking to Bookings
+		Preload("Bookings").     // Changed from Booking to Bookings
 		Preload("Bookings.Car"). // Preload car info for each booking
 		Order("created_at DESC").
 		Offset(offset).
@@ -89,7 +89,7 @@ func (r *CarRequestRepository) GetPendingRequests() ([]models.CarRequest, error)
 	err := r.db.
 		Where("status = ?", models.CarRequestPending).
 		Preload("User").
-		Preload("Bookings").      // Changed from Booking to Bookings
+		Preload("Bookings").     // Changed from Booking to Bookings
 		Preload("Bookings.Car"). // Preload car info
 		Order("created_at ASC").
 		Find(&requests).Error
@@ -195,10 +195,50 @@ func (r *CarBookingRepository) GetUserCarBookings(userID uint) ([]models.CarBook
 		Joins("JOIN car_requests ON car_bookings.request_id = car_requests.id").
 		Where("car_requests.user_id = ?", userID).
 		Preload("Request").
+		Preload("Request.User").
 		Preload("Car").
+		Preload("BookedByUser").
 		Order("departure_date DESC, start_time ASC").
 		Find(&bookings).Error
 	return bookings, err
+}
+
+// ListForUser gets paginated car bookings for a specific request owner.
+func (r *CarBookingRepository) ListForUser(page, pageSize int, userID uint, filters map[string]interface{}) ([]models.CarBooking, int64, error) {
+	var bookings []models.CarBooking
+	var total int64
+
+	offset := (page - 1) * pageSize
+	query := r.db.Model(&models.CarBooking{}).
+		Joins("JOIN car_requests ON car_bookings.request_id = car_requests.id").
+		Where("car_requests.user_id = ?", userID).
+		Where("car_requests.deleted_at IS NULL")
+
+	if carID, ok := filters["car_id"]; ok {
+		query = query.Where("car_bookings.car_id = ?", carID)
+	}
+	if status, ok := filters["status"]; ok {
+		query = query.Where("car_bookings.status = ?", status)
+	}
+	if bookingDate, ok := filters["booking_date"]; ok {
+		query = query.Where("car_bookings.departure_date = ?", bookingDate)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	err := query.
+		Preload("Request").
+		Preload("Request.User").
+		Preload("Car").
+		Preload("BookedByUser").
+		Order("car_bookings.departure_date DESC, car_bookings.start_time ASC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&bookings).Error
+
+	return bookings, total, err
 }
 
 // GetCalendarCarBookings gets car bookings for calendar view within date range
@@ -207,7 +247,14 @@ func (r *CarBookingRepository) GetCalendarCarBookings(startDate, endDate time.Ti
 
 	query := r.db.Model(&models.CarBooking{}).
 		Where("departure_date >= ? AND departure_date <= ?", startDate, endDate).
-		Where("status IN ?", []models.CarBookingStatus{models.CarBookingConfirmed, models.CarBookingCompleted})
+		Where("status IN ?", []models.CarBookingStatus{
+			models.CarBookingConfirmed,
+			models.CarBookingPickedUp,
+			models.CarBookingInUse,
+			models.CarBookingReturned,
+			models.CarBookingLateReturn,
+			models.CarBookingCompleted,
+		})
 
 	// Filter by car if specified
 	if carID != nil {

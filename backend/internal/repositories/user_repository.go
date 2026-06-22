@@ -1,4 +1,4 @@
-package repositories
+﻿package repositories
 
 import (
 	"github.com/Kal-el21/booking-room-golang/backend/internal/models"
@@ -124,4 +124,11 @@ func (r *UserRepository) FindSessionByRefreshToken(refreshToken string, userID u
 // UpdateSession updates a session
 func (r *UserRepository) UpdateSession(session *models.UserSession) error {
 	return r.db.Save(session).Error
+}
+
+// GetDrivers gets all drivers
+func (r *UserRepository) GetDrivers() ([]models.User, error) {
+	var drivers []models.User
+	err := r.db.Where("role = ?", models.RoleDriver).Find(&drivers).Error
+	return drivers, err
 }

@@ -52,6 +52,7 @@ const getRolePath = (role: string | undefined): string => {
   switch (role) {
     case 'room_admin': return 'admin';
     case 'GA':         return 'ga';
+    case 'driver':     return 'driver';
     default:           return 'user';
   }
 };
@@ -115,6 +116,19 @@ const getNavItems = (role: string | undefined): NavItem[] => {
           ],
         },
         { title: 'Users', href: '/ga/users', icon: Users },
+      ];
+
+    case 'driver':
+      return [
+        dashboard,
+        {
+          title: 'Car',
+          icon: Car,
+          children: [
+            { title: 'My Drives', href: '/driver/car-bookings' },
+            { title: 'Car Calendar',    href: '/driver/car-calendar' },
+          ],
+        },
       ];
 
     case 'room_admin':

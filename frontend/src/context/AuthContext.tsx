@@ -57,7 +57,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Check if OTP is required
       if ('otp_required' in response.data) {
         const otpData = response.data as LoginOTPPendingResponse;
-        navigate('/login-otp', { 
+        navigate('/otp-login', {
           state: { 
             userId: otpData.user_id,
             email: otpData.email,
@@ -77,6 +77,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       switch (authResponse.data.user.role) {
         case 'user':
           navigate('/user/dashboard');
+          break;
+        case 'driver':
+          navigate('/driver/dashboard');
           break;
         case 'GA':
           navigate('/ga/dashboard');

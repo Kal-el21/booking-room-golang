@@ -23,17 +23,18 @@ type CarRequest struct {
 	Notes            *string `gorm:"type:text" json:"notes"`
 
 	// Travel information (NEW)
-	Destination           *string `gorm:"type:varchar(255)" json:"destination,omitempty"`
-	PickupLocation        *string `gorm:"type:varchar(255)" json:"pickup_location,omitempty"`
-	DriverRequired        bool    `gorm:"default:false" json:"driver_required"`
-	EstimatedDistanceKM   *int    `gorm:"type:integer" json:"estimated_distance_km,omitempty"`
-	PassengerCount        *int    `json:"passenger_count,omitempty"`
-	NeedsFuelReimbursement bool  `gorm:"default:false" json:"needs_fuel_reimbursement"`
-	FuelNote             *string `gorm:"type:text" json:"fuel_note,omitempty"`
+	Destination            *string `gorm:"type:varchar(255)" json:"destination,omitempty"`
+	PickupLocation         *string `gorm:"type:varchar(255)" json:"pickup_location,omitempty"`
+	DriverRequired         bool    `gorm:"default:false" json:"driver_required"`
+	EstimatedDistanceKM    *int    `gorm:"type:integer" json:"estimated_distance_km,omitempty"`
+	PassengerCount         *int    `json:"passenger_count,omitempty"`
+	NeedsFuelReimbursement bool    `gorm:"default:false" json:"needs_fuel_reimbursement"`
+	FuelNote               *string `gorm:"type:text" json:"fuel_note,omitempty"`
 
 	// Consumption fields
 	HasConsumption  bool    `gorm:"default:false" json:"has_consumption"`
 	ConsumptionNote *string `gorm:"type:text" json:"consumption_note"`
+	GAConsumptionNote *string `gorm:"type:text" json:"ga_consumption_note"`
 
 	// Single day or multi-day booking
 	BookingDate time.Time  `gorm:"type:date;not null" json:"booking_date" binding:"required"`
@@ -47,17 +48,17 @@ type CarRequest struct {
 	RecurringDays    *string    `gorm:"type:varchar(255)" json:"recurring_days"` // For weekly: "1,3,5" (Mon,Wed,Fri)
 	RecurringEndDate *time.Time `gorm:"type:date" json:"recurring_end_date"`     // When recurring stops
 
-	Status         CarRequestStatus  `gorm:"type:varchar(50);not null;default:'pending'" json:"status"`
-	AssignedBy     *uint             `gorm:"index" json:"assigned_by"` // GA who approved/rejected
-	RejectedReason *string           `gorm:"type:text" json:"rejected_reason"`
-	CreatedAt      time.Time         `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt      time.Time         `gorm:"autoUpdateTime" json:"updated_at"`
-	DeletedAt      gorm.DeletedAt    `gorm:"index" json:"-"`
+	Status         CarRequestStatus `gorm:"type:varchar(50);not null;default:'pending'" json:"status"`
+	AssignedBy     *uint            `gorm:"index" json:"assigned_by"` // GA who approved/rejected
+	RejectedReason *string          `gorm:"type:text" json:"rejected_reason"`
+	CreatedAt      time.Time        `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt      time.Time        `gorm:"autoUpdateTime" json:"updated_at"`
+	DeletedAt      gorm.DeletedAt   `gorm:"index" json:"-"`
 
 	// Relationships
-	User     User          `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Assigner *User         `gorm:"foreignKey:AssignedBy" json:"assigner,omitempty"`
-	Bookings []CarBooking  `gorm:"foreignKey:RequestID;constraint:OnDelete:CASCADE" json:"bookings,omitempty"` // Multiple bookings for recurring/multi-day
+	User     User         `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Assigner *User        `gorm:"foreignKey:AssignedBy" json:"assigner,omitempty"`
+	Bookings []CarBooking `gorm:"foreignKey:RequestID;constraint:OnDelete:CASCADE" json:"bookings,omitempty"` // Multiple bookings for recurring/multi-day
 }
 
 // TableName specifies table name
@@ -111,68 +112,70 @@ func (r *CarRequest) GetDuration() int {
 
 // CarRequestResponse for API responses
 type CarRequestResponse struct {
-	ID               uint                  `json:"id"`
-	UserID           uint                  `json:"user_id"`
-	UserName         string                `json:"user_name"`
-	User             *UserResponse         `json:"user,omitempty"`
-	RequiredCapacity int                   `json:"required_capacity"`
-	Purpose          string                `json:"purpose"`
-	Destination       *string               `json:"destination,omitempty"`           // ← NEW
-	PickupLocation    *string               `json:"pickup_location,omitempty"`       // ← NEW
-	DriverRequired    bool                  `json:"driver_required"`                  // ← NEW
-	EstimatedDistanceKM *int                `json:"estimated_distance_km,omitempty"` // ← NEW
-	PassengerCount    *int                  `json:"passenger_count,omitempty"`        // ← NEW
-	NeedsFuelReimbursement bool             `json:"needs_fuel_reimbursement"`        // ← NEW
-	FuelNote         *string               `json:"fuel_note,omitempty"`             // ← NEW
-	Notes            *string               `json:"notes"`
-	HasConsumption   bool                  `json:"has_consumption"`
-	ConsumptionNote  *string               `json:"consumption_note"`
-	BookingDate      string                `json:"booking_date"` // Format: YYYY-MM-DD
-	EndDate          *string               `json:"end_date"`     // Format: YYYY-MM-DD for multi-day
-	StartTime        string                `json:"start_time"`   // Format: HH:MM
-	EndTime          string                `json:"end_time"`     // Format: HH:MM
-	IsRecurring      bool                  `json:"is_recurring"`
-	RecurringType    *string               `json:"recurring_type"`
-	RecurringDays    *string               `json:"recurring_days"`
-	RecurringEndDate *string               `json:"recurring_end_date"` // Format: YYYY-MM-DD
-	Status           CarRequestStatus      `json:"status"`
-	AssignedBy       *uint                 `json:"assigned_by"`
-	Assigner         *UserResponse         `json:"assigner,omitempty"`
-	RejectedReason   *string               `json:"rejected_reason"`
-	Bookings         []CarBookingResponse  `json:"bookings,omitempty"`
-	CreatedAt        time.Time             `json:"created_at"`
-	UpdatedAt        time.Time             `json:"updated_at"`
+	ID                     uint                 `json:"id"`
+	UserID                 uint                 `json:"user_id"`
+	UserName               string               `json:"user_name"`
+	User                   *UserResponse        `json:"user,omitempty"`
+	RequiredCapacity       int                  `json:"required_capacity"`
+	Purpose                string               `json:"purpose"`
+	Destination            *string              `json:"destination,omitempty"`           // ← NEW
+	PickupLocation         *string              `json:"pickup_location,omitempty"`       // ← NEW
+	DriverRequired         bool                 `json:"driver_required"`                 // ← NEW
+	EstimatedDistanceKM    *int                 `json:"estimated_distance_km,omitempty"` // ← NEW
+	PassengerCount         *int                 `json:"passenger_count,omitempty"`       // ← NEW
+	NeedsFuelReimbursement bool                 `json:"needs_fuel_reimbursement"`        // ← NEW
+	FuelNote               *string              `json:"fuel_note,omitempty"`             // ← NEW
+	Notes                  *string              `json:"notes"`
+	HasConsumption         bool                 `json:"has_consumption"`
+	ConsumptionNote        *string              `json:"consumption_note"`
+	GAConsumptionNote      *string              `json:"ga_consumption_note"`
+	BookingDate            string               `json:"booking_date"` // Format: YYYY-MM-DD
+	EndDate                *string              `json:"end_date"`     // Format: YYYY-MM-DD for multi-day
+	StartTime              string               `json:"start_time"`   // Format: HH:MM
+	EndTime                string               `json:"end_time"`     // Format: HH:MM
+	IsRecurring            bool                 `json:"is_recurring"`
+	RecurringType          *string              `json:"recurring_type"`
+	RecurringDays          *string              `json:"recurring_days"`
+	RecurringEndDate       *string              `json:"recurring_end_date"` // Format: YYYY-MM-DD
+	Status                 CarRequestStatus     `json:"status"`
+	AssignedBy             *uint                `json:"assigned_by"`
+	Assigner               *UserResponse        `json:"assigner,omitempty"`
+	RejectedReason         *string              `json:"rejected_reason"`
+	Bookings               []CarBookingResponse `json:"bookings,omitempty"`
+	CreatedAt              time.Time            `json:"created_at"`
+	UpdatedAt              time.Time            `json:"updated_at"`
 }
 
 // ToResponse converts CarRequest to CarRequestResponse
 func (r *CarRequest) ToResponse() CarRequestResponse {
 	response := CarRequestResponse{
-		ID:               r.ID,
-		UserID:           r.UserID,
-		UserName:         r.User.Name,
-		RequiredCapacity: r.RequiredCapacity,
-		Purpose:          r.Purpose,
-		Destination:       r.Destination,
-		PickupLocation:    r.PickupLocation,
-		DriverRequired:    r.DriverRequired,
-		EstimatedDistanceKM: r.EstimatedDistanceKM,
-		PassengerCount:    r.PassengerCount,
+		ID:                     r.ID,
+		UserID:                 r.UserID,
+		UserName:               r.User.Name,
+		RequiredCapacity:       r.RequiredCapacity,
+		Purpose:                r.Purpose,
+		Destination:            r.Destination,
+		PickupLocation:         r.PickupLocation,
+		DriverRequired:         r.DriverRequired,
+		EstimatedDistanceKM:    r.EstimatedDistanceKM,
+		PassengerCount:         r.PassengerCount,
 		NeedsFuelReimbursement: r.NeedsFuelReimbursement,
-		FuelNote:          r.FuelNote,
-		Notes:            r.Notes,
-		HasConsumption:   r.HasConsumption,
-		ConsumptionNote:  r.ConsumptionNote,
-		BookingDate:      r.BookingDate.Format("2006-01-02"),
-		StartTime:        r.StartTime.Format("15:04"),
-		EndTime:          r.EndTime.Format("15:04"),
-		IsRecurring:      r.IsRecurring,
-		RecurringType:    r.RecurringType,
-		RecurringDays:    r.RecurringDays,
-		Status:           r.Status,
-		AssignedBy:       r.AssignedBy,
-		RejectedReason:   r.RejectedReason,
-		CreatedAt:        r.CreatedAt,
-		UpdatedAt:        r.UpdatedAt,
+		FuelNote:               r.FuelNote,
+		Notes:                  r.Notes,
+		HasConsumption:         r.HasConsumption,
+		ConsumptionNote:        r.ConsumptionNote,
+		GAConsumptionNote:      r.GAConsumptionNote,
+		BookingDate:            r.BookingDate.Format("2006-01-02"),
+		StartTime:              r.StartTime.Format("15:04"),
+		EndTime:                r.EndTime.Format("15:04"),
+		IsRecurring:            r.IsRecurring,
+		RecurringType:          r.RecurringType,
+		RecurringDays:          r.RecurringDays,
+		Status:                 r.Status,
+		AssignedBy:             r.AssignedBy,
+		RejectedReason:         r.RejectedReason,
+		CreatedAt:              r.CreatedAt,
+		UpdatedAt:              r.UpdatedAt,
 	}
 
 	// Handle multi-day

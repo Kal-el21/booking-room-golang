@@ -44,6 +44,7 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 //   - name     (string, optional)
 //   - division (string, optional)
 //   - avatar   (file,   optional) — JPG / PNG / WebP, max 5 MB
+//   - driver_license (string, optional) — for drivers
 //
 // @route PUT /api/v1/users/me
 func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
@@ -70,6 +71,9 @@ func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 	}
 	if division := c.PostForm("division"); division != "" {
 		updateInput.Division = &division
+	}
+	if driverLicense := c.PostForm("driver_license"); driverLicense != "" {
+		updateInput.DriverLicense = &driverLicense
 	}
 
 	// ── Handle avatar file (optional) ────────────────────────
@@ -142,9 +146,9 @@ func (h *UserHandler) UpdateCurrentUser(c *gin.Context) {
 	}
 
 	// ── Apply profile updates ─────────────────────────────────
-	// Update name/division if provided
+	// Update name/division/driver_license if any provided
 	var updatedUser interface{}
-	if updateInput.Name != nil || updateInput.Division != nil {
+	if updateInput.Name != nil || updateInput.Division != nil || updateInput.DriverLicense != nil {
 		u, err := h.userService.UpdateUser(user.ID, updateInput)
 		if err != nil {
 			utils.ErrorResponse(c, 400, "Failed to update profile", err.Error())
@@ -324,4 +328,22 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, "Password reset successfully", nil)
+}
+
+// GetDrivers gets all drivers (GA only)
+// @route GET /api/v1/users/drivers
+func (h *UserHandler) GetDrivers(c *gin.Context) {
+	user, _ := middleware.GetCurrentUser(c)
+	if !user.IsGA() {
+		utils.ErrorResponse(c, 403, "Only GA can access this endpoint", nil)
+		return
+	}
+
+	drivers, err := h.userService.GetDrivers()
+	if err != nil {
+		utils.ErrorResponse(c, 500, "Failed to get drivers", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, "Drivers retrieved successfully", drivers)
 }

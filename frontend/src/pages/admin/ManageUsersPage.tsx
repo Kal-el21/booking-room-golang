@@ -121,6 +121,11 @@ export const ManageUsersPage = () => {
         label: 'GA',
         className: 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm'
       },
+      driver: {
+        variant: 'outline',
+        label: 'Driver',
+        className: 'bg-sky-50 text-sky-700 border-sky-200 shadow-sm'
+      },
     };
     const { variant, label, className } = config[role] || config.user;
     return <Badge variant={variant} className={className}>{label}</Badge>;
@@ -184,6 +189,7 @@ export const ManageUsersPage = () => {
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="room_admin">Room Admin</SelectItem>
                   <SelectItem value="GA">GA</SelectItem>
+                  <SelectItem value="driver">Driver</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -192,7 +198,7 @@ export const ManageUsersPage = () => {
       </Card>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -224,6 +230,18 @@ export const ManageUsersPage = () => {
           <CardContent>
             <div className="text-2xl font-bold">
               {users.filter((u) => u.role === 'user').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Drivers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {users.filter((u) => u.role === 'driver').length}
             </div>
           </CardContent>
         </Card>
@@ -364,6 +382,7 @@ export const ManageUsersPage = () => {
                     <SelectItem value="user">User</SelectItem>
                     <SelectItem value="room_admin">Room Admin</SelectItem>
                     <SelectItem value="GA">GA</SelectItem>
+                    <SelectItem value="driver">Driver</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

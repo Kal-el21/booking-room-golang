@@ -89,3 +89,10 @@ export const useChangePassword = () => {
     },
   });
 };
+
+export const useDrivers = () => {
+  return useQuery({
+    queryKey: ['drivers'],
+    queryFn: () => userService.getDrivers(),
+  });
+};

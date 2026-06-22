@@ -79,6 +79,10 @@ func (s *CarBookingService) PickUpBooking(bookingID uint, driverID *uint, pickup
 		return nil, fmt.Errorf("failed to update booking: %w", err)
 	}
 
+	if err := markCarOccupied(s.db, booking.CarID); err != nil {
+		fmt.Printf("Warning: failed to mark car as occupied: %v\n", err)
+	}
+
 	// Reload with all relations
 	reloaded, err := s.bookingRepo.FindByID(bookingID)
 	if err != nil {
@@ -131,6 +135,10 @@ func (s *CarBookingService) ReturnBooking(bookingID uint, endOdometer int, fuelL
 		}
 	}
 
+	if err := releaseCarIfNoActiveBookings(s.db, booking.CarID); err != nil {
+		fmt.Printf("Warning: failed to release car status: %v\n", err)
+	}
+
 	// Reload
 	reloaded, err := s.bookingRepo.FindByID(bookingID)
 	if err != nil {
@@ -160,20 +168,31 @@ func (s *CarBookingService) isLateReturn(booking *models.CarBooking) bool {
 	return time.Now().Local().After(bookingEnd)
 }
 
-// GetDriverBookings gets all confirmed/picked-up/in-use car bookings assigned to a driver
-func (s *CarBookingService) GetDriverBookings(driverID uint) ([]models.CarBooking, error) {
+// GetDriverBookings gets car bookings assigned to a driver.
+func (s *CarBookingService) GetDriverBookings(driverID uint, filters map[string]interface{}) ([]models.CarBooking, error) {
 	var bookings []models.CarBooking
-	err := s.db.
-		Where("driver_id = ?", driverID).
-		Where("status IN ?", []models.CarBookingStatus{
-			models.CarBookingConfirmed,
-			models.CarBookingPickedUp,
-			models.CarBookingInUse,
-		}).
+
+	query := s.db.Where("driver_id = ?", driverID)
+	if filters != nil {
+		if status, ok := filters["status"]; ok {
+			query = query.Where("status = ?", status)
+		}
+		if carID, ok := filters["car_id"]; ok {
+			query = query.Where("car_id = ?", carID)
+		}
+		if bookingDate, ok := filters["booking_date"]; ok {
+			query = query.Where("departure_date = ?", bookingDate)
+		}
+	}
+
+	err := query.
 		Preload("Car").
 		Preload("Car.Creator").
 		Preload("Request").
 		Preload("Request.User").
+		Preload("Request.Assigner").
+		Preload("BookedByUser").
+		Preload("Driver").
 		Order("departure_date ASC, start_time ASC").
 		Find(&bookings).Error
 
@@ -243,6 +262,57 @@ func (s *CarBookingService) UnassignDriver(bookingID uint, actorID uint) (*model
 	return reloaded, nil
 }
 
+// CancelBooking cancels a car booking and its associated request (GA only)
+func (s *CarBookingService) CancelBooking(bookingID uint, actorID uint) (*models.CarBooking, error) {
+	booking, err := s.bookingRepo.FindByID(bookingID)
+	if err != nil {
+		return nil, errors.New("booking not found")
+	}
+
+	// Check if booking can be cancelled
+	if !booking.CanBeCancelled() {
+		return nil, errors.New("booking cannot be cancelled")
+	}
+
+	// Update booking status
+	booking.Status = models.CarBookingCancelled
+
+	if err := s.bookingRepo.Update(booking); err != nil {
+		return nil, fmt.Errorf("failed to update booking: %w", err)
+	}
+
+	// Update car request status to cancelled
+	request, err := s.requestRepo.FindByID(booking.RequestID)
+	if err == nil {
+		request.Status = models.CarRequestCancelled
+		if err := s.requestRepo.Update(request); err != nil {
+			fmt.Printf("Warning: failed to update car request status: %v\n", err)
+		}
+	}
+
+	// Release car status
+	if err := releaseCarIfNoActiveBookings(s.db, booking.CarID); err != nil {
+		fmt.Printf("Warning: failed to release car status: %v\n", err)
+	}
+
+	// Notify user who made the booking
+	go s.notifyBookingCancelled(booking)
+
+	return s.bookingRepo.FindByID(bookingID)
+}
+
+func (s *CarBookingService) notifyBookingCancelled(booking *models.CarBooking) {
+	notification := &models.Notification{
+		UserID:       booking.BookedBy,
+		CarBookingID: &booking.ID,
+		Title:        "Car Booking Cancelled",
+		Message:      fmt.Sprintf("Your car booking for %s (%s) on %s has been cancelled", booking.GetCarName(), booking.GetPlateNumber(), booking.DepartureDate.Format("2006-01-02")),
+		Type:         models.NotifCarBookingCancelled,
+		Channel:      models.ChannelBoth,
+	}
+	s.notificationSvc.CreateNotification(notification)
+}
+
 // UpdateBookingStatus allows GA to manually override booking status (overrides state machine)
 func (s *CarBookingService) UpdateBookingStatus(bookingID uint, newStatus models.CarBookingStatus, actorID uint) (*models.CarBooking, error) {
 	booking, err := s.bookingRepo.FindByID(bookingID)
@@ -276,6 +346,17 @@ func (s *CarBookingService) UpdateBookingStatus(bookingID uint, newStatus models
 		return nil, fmt.Errorf("failed to update booking status: %w", err)
 	}
 
+	switch newStatus {
+	case models.CarBookingPickedUp, models.CarBookingInUse:
+		if err := markCarOccupied(s.db, booking.CarID); err != nil {
+			fmt.Printf("Warning: failed to mark car as occupied: %v\n", err)
+		}
+	case models.CarBookingConfirmed, models.CarBookingReturned, models.CarBookingLateReturn, models.CarBookingCancelled:
+		if err := releaseCarIfNoActiveBookings(s.db, booking.CarID); err != nil {
+			fmt.Printf("Warning: failed to release car status: %v\n", err)
+		}
+	}
+
 	reloaded, err := s.bookingRepo.FindByID(bookingID)
 	if err != nil {
 		return nil, err
@@ -299,10 +380,24 @@ func (s *CarBookingService) ListBookings(page, pageSize int, filters map[string]
 	if page < 1 {
 		page = 1
 	}
+	if pageSize < 1 || pageSize > 1000 {
+		pageSize = 100
+	}
+	return s.bookingRepo.List(page, pageSize, filters)
+}
+
+// ListUserBookings lists paginated car bookings owned by the current user.
+func (s *CarBookingService) ListUserBookings(page, pageSize int, userID uint, filters map[string]interface{}) ([]models.CarBooking, int64, error) {
+	if page < 1 {
+		page = 1
+	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 10
 	}
-	return s.bookingRepo.List(page, pageSize, filters)
+	if filters == nil {
+		filters = make(map[string]interface{})
+	}
+	return s.bookingRepo.ListForUser(page, pageSize, userID, filters)
 }
 
 // ToCarBookingResponseList converts car booking list to response list
@@ -316,11 +411,11 @@ func ToCarBookingResponseList(bookings []models.CarBooking) []models.CarBookingR
 
 // FleetStatusItem represents the lifecycle status of a single car
 type FleetStatusItem struct {
-	CarID      uint   `json:"car_id"`
-	CarName    string `json:"car_name"`
-	PlateNum   string `json:"plate_num"`
-	Status     string `json:"car_status"`      // available / occupied / maintenance
-	BookingID  *uint  `json:"current_booking_id"`
+	CarID         uint   `json:"car_id"`
+	CarName       string `json:"car_name"`
+	PlateNum      string `json:"plate_num"`
+	Status        string `json:"car_status"` // available / occupied / maintenance
+	BookingID     *uint  `json:"current_booking_id"`
 	BookingStatus string `json:"current_booking_status"`
 }
 
@@ -395,7 +490,7 @@ func (s *CarBookingService) GetFleetStatus() (*FleetStatusResponse, error) {
 		err := s.db.
 			Where("car_id = ?", car.ID).
 			Where("status NOT IN ?", []models.CarBookingStatus{
-				models.CarBookingReturned, models.CarBookingLateReturn, models.CarBookingCancelled,
+				models.CarBookingReturned, models.CarBookingLateReturn, models.CarBookingCancelled, models.CarBookingCompleted,
 			}).
 			Order("departure_date DESC, start_time DESC").
 			First(&activeBooking).Error

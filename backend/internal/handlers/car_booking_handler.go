@@ -31,9 +31,9 @@ func (h *CarBookingHandler) PickUpBooking(c *gin.Context) {
 	}
 
 	var input struct {
-		DriverID        *uint   `json:"driver_id"`
-		PickupLocation  *string `json:"pickup_location"`
-		StartOdometer   int     `json:"start_odometer" binding:"required"`
+		DriverID       *uint   `json:"driver_id"`
+		PickupLocation *string `json:"pickup_location"`
+		StartOdometer  int     `json:"start_odometer" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -87,7 +87,7 @@ func (h *CarBookingHandler) ReturnBooking(c *gin.Context) {
 	utils.SuccessResponse(c, 200, "Return recorded successfully", booking.ToResponse())
 }
 
-// GetDriverBookings gets all active bookings for the logged-in driver
+// GetDriverBookings gets bookings assigned to the logged-in driver
 // @route GET /api/v1/driver/bookings
 func (h *CarBookingHandler) GetDriverBookings(c *gin.Context) {
 	user, _ := middleware.GetCurrentUser(c)
@@ -97,7 +97,18 @@ func (h *CarBookingHandler) GetDriverBookings(c *gin.Context) {
 		return
 	}
 
-	bookings, err := h.bookingService.GetDriverBookings(user.ID)
+	filters := make(map[string]interface{})
+	if status := c.Query("status"); status != "" {
+		filters["status"] = status
+	}
+	if carID := c.Query("car_id"); carID != "" {
+		filters["car_id"] = carID
+	}
+	if bookingDate := c.Query("booking_date"); bookingDate != "" {
+		filters["booking_date"] = bookingDate
+	}
+
+	bookings, err := h.bookingService.GetDriverBookings(user.ID, filters)
 	if err != nil {
 		utils.ErrorResponse(c, 500, "Failed to retrieve driver bookings", err.Error())
 		return
@@ -123,11 +134,72 @@ func (h *CarBookingHandler) GetCarBooking(c *gin.Context) {
 		return
 	}
 
-	// Non-GA users can only view their own company's bookings
-	// (loosened — any authenticated user can view any car booking for now)
-	_ = user
+	if !canViewCarBooking(user, booking) {
+		utils.ErrorResponse(c, 403, "You don't have permission to view this booking", nil)
+		return
+	}
 
 	utils.SuccessResponse(c, 200, "Booking retrieved successfully", booking.ToResponse())
+}
+
+func canViewCarBooking(user *models.User, booking *models.CarBooking) bool {
+	if user.IsGA() {
+		return true
+	}
+	if booking.BookedBy == user.ID || booking.Request.UserID == user.ID {
+		return true
+	}
+	if booking.DriverID != nil && *booking.DriverID == user.ID {
+		return true
+	}
+	return false
+}
+
+// ListMyCarBookings lists car bookings owned by the logged-in user
+// @route GET /api/v1/my-car-bookings
+func (h *CarBookingHandler) ListMyCarBookings(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 10
+	}
+
+	filters := make(map[string]interface{})
+	if status := c.Query("status"); status != "" {
+		filters["status"] = status
+	}
+	if carID := c.Query("car_id"); carID != "" {
+		filters["car_id"] = carID
+	}
+	if bookingDate := c.Query("booking_date"); bookingDate != "" {
+		filters["booking_date"] = bookingDate
+	}
+
+	user, _ := middleware.GetCurrentUser(c)
+	bookings, total, err := h.bookingService.ListUserBookings(page, pageSize, user.ID, filters)
+	if err != nil {
+		utils.ErrorResponse(c, 500, "Failed to retrieve your car bookings", err.Error())
+		return
+	}
+
+	responses := services.ToCarBookingResponseList(bookings)
+
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize > 0 {
+		totalPages++
+	}
+
+	meta := utils.PaginationMeta{
+		CurrentPage: page,
+		PerPage:     pageSize,
+		Total:       total,
+		TotalPages:  totalPages,
+	}
+
+	utils.SuccessResponseWithMeta(c, 200, "Your car bookings retrieved successfully", responses, meta)
 }
 
 // UpdateBookingStatus allows GA to manually override booking status
@@ -267,4 +339,28 @@ func (h *CarBookingHandler) UnassignDriver(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, 200, "Driver unassigned successfully", booking.ToResponse())
+}
+
+// CancelBooking cancels a car booking (GA only)
+// @route DELETE /api/v1/car-bookings/:id
+func (h *CarBookingHandler) CancelBooking(c *gin.Context) {
+	id, err := utils.ParseIDParam(c, "id")
+	if err != nil {
+		utils.ErrorResponse(c, 400, "Invalid booking ID", err.Error())
+		return
+	}
+
+	user, _ := middleware.GetCurrentUser(c)
+	if !user.IsGA() {
+		utils.ErrorResponse(c, 403, "Only GA can cancel car bookings", nil)
+		return
+	}
+
+	booking, err := h.bookingService.CancelBooking(uint(id), user.ID)
+	if err != nil {
+		utils.ErrorResponse(c, 400, "Failed to cancel booking", err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, 200, "Booking cancelled successfully", booking.ToResponse())
 }

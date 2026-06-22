@@ -1,4 +1,4 @@
-import { systemSettingService, type SystemSettings } from '@/services/system.setting,service';
+import { systemSettingService, type SystemSettings } from '@/services/system.setting.service';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 

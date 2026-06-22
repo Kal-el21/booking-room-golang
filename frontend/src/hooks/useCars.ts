@@ -1,7 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { carService, carRequestService } from '@/services/car.service';
 import { carBookingService } from '@/services/car-booking.service';
-import type { Car, CreateCarRequestInput, ApproveCarRequestInput, RejectCarRequestInput, CarRequestFilters, CarBooking, CarBookingFilters, CarBookingStatus, FleetStatusResponse, PickUpBookingInput, ReturnBookingInput, AssignDriverInput } from '@/types';
+import type { Car, CreateCarRequestInput, ApproveCarRequestInput, RejectCarRequestInput, CarRequestFilters, CarBookingFilters, CarBookingStatus, PickUpBookingInput, ReturnBookingInput, AssignDriverInput } from '@/types';
+import { toast } from 'sonner';
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  const apiError = error as { message?: string; error?: unknown };
+  if (typeof apiError.error === 'string') return apiError.error;
+  return apiError.message || fallback;
+};
 
 // ─── Car Management Hooks ────────────────────────────────────────────
 
@@ -118,6 +125,10 @@ export const useCreateCarRequest = () => {
     mutationFn: (data: CreateCarRequestInput) => carRequestService.createCarRequest(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['carRequests'] });
+      toast.success('Car request submitted successfully');
+    },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error, 'Failed to submit car request'));
     },
   });
 };
@@ -127,8 +138,13 @@ export const useUpdateCarRequest = () => {
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<CreateCarRequestInput> }) =>
       carRequestService.updateCarRequest(id, data),
-    onSuccess: () => {
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['carRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['carRequest', id] });
+      toast.success('Car request updated successfully');
+    },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error, 'Failed to update car request'));
     },
   });
 };
@@ -156,6 +172,7 @@ export const useApproveCarRequest = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['carRequests'] });
       queryClient.invalidateQueries({ queryKey: ['carBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['myCarBookings'] });
     },
   });
 };
@@ -176,9 +193,11 @@ export const useRejectCarRequest = () => {
   });
 };
 
-export const useAvailableCarsForRequest = () => {
-  return useMutation({
-    mutationFn: (requestId: number) => carRequestService.getAvailableCarsForRequest(requestId),
+export const useAvailableCarsForRequest = (requestId?: number) => {
+  return useQuery({
+    queryKey: ['availableCarsForRequest', requestId],
+    queryFn: () => carRequestService.getAvailableCarsForRequest(requestId!),
+    enabled: !!requestId,
   });
 };
 
@@ -202,6 +221,14 @@ export const useCarBookings = (filters?: CarBookingFilters) => {
   return useQuery({
     queryKey: ['carBookings', filters],
     queryFn: () => carBookingService.listAllCarBookings(filters),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const useMyCarBookings = (filters?: CarBookingFilters) => {
+  return useQuery({
+    queryKey: ['myCarBookings', filters],
+    queryFn: () => carBookingService.listMyCarBookings(filters),
     staleTime: 5 * 60 * 1000,
   });
 };
@@ -273,6 +300,22 @@ export const useUnassignDriver = () => {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['carBooking', id] });
       queryClient.invalidateQueries({ queryKey: ['carBookings'] });
+    },
+  });
+};
+
+export const useCancelCarBooking = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => carBookingService.cancelBooking(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['carBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['carRequests'] });
+      queryClient.invalidateQueries({ queryKey: ['fleetStatus'] });
+      toast.success('Booking cancelled successfully');
+    },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error, 'Failed to cancel booking'));
     },
   });
 };

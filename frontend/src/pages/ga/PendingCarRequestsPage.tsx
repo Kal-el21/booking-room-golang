@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCarRequests, useAvailableCarsForRequest, useApproveCarRequest, useRejectCarRequest } from '@/hooks/useCars';
+import { useDrivers } from '@/hooks/useUsers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ const PendingCarRequestsPageContent = () => {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<CarRequest | null>(null);
   const [selectedCarId, setSelectedCarId] = useState<string>('');
+  const [selectedDriverId, setSelectedDriverId] = useState<string>('');
   const [rejectReason, setRejectReason] = useState('');
   const [gaConsumptionNote, setGaConsumptionNote] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,6 +56,8 @@ const PendingCarRequestsPageContent = () => {
     selectedRequest?.id || 0
   );
 
+  const { data: drivers, isLoading: loadingDrivers } = useDrivers();
+
   // ── Mutations ──────────────────────────────────────────────────────────────
 
   const approveCarRequest = useApproveCarRequest();
@@ -64,6 +68,7 @@ const PendingCarRequestsPageContent = () => {
   const handleApproveClick = (request: CarRequest) => {
     setSelectedRequest(request);
     setSelectedCarId('');
+    setSelectedDriverId('');
     setGaConsumptionNote(request.consumption_note || '');
     setApproveDialogOpen(true);
   };
@@ -76,20 +81,25 @@ const PendingCarRequestsPageContent = () => {
 
   const handleApprove = async () => {
     if (!selectedRequest || !selectedCarId) return;
+    if (selectedRequest.driver_required && !selectedDriverId) {
+      toast.error('Driver is required for this request');
+      return;
+    }
 
     try {
       await approveCarRequest.mutateAsync({
         requestId: selectedRequest.id,
         data: {
           car_id: parseInt(selectedCarId),
-          departure_date: selectedRequest.departure_date,
-          consumption_note: gaConsumptionNote || undefined,
+          ga_consumption_note: gaConsumptionNote || undefined,
+          driver_id: selectedDriverId ? parseInt(selectedDriverId) : undefined,
         },
       });
       toast.success('Car request approved successfully');
       setApproveDialogOpen(false);
       setSelectedRequest(null);
       setSelectedCarId('');
+      setSelectedDriverId('');
       setGaConsumptionNote('');
     } catch {
       toast.error('Failed to approve car request');
@@ -122,6 +132,10 @@ const PendingCarRequestsPageContent = () => {
     (r.purpose || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (r.user_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const driverOptions = drivers ?? [];
+  const isDriverRequired = !!selectedRequest?.driver_required;
+  const canApprove = !!selectedCarId && (!isDriverRequired || !!selectedDriverId) && (!isDriverRequired || driverOptions.length > 0);
 
   // ── Loading ────────────────────────────────────────────────────────────────
 
@@ -378,6 +392,47 @@ const PendingCarRequestsPageContent = () => {
                 )}
               </div>
 
+              {selectedRequest.driver_required && (
+                <div className="space-y-2">
+                  <Label htmlFor="driver">Assign Driver *</Label>
+                  {loadingDrivers ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+                      <SelectTrigger id="driver">
+                        <SelectValue placeholder="Choose a driver..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {driverOptions.length > 0 ? (
+                          driverOptions.map((driver) => (
+                            <SelectItem key={driver.id} value={driver.id.toString()}>
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                <span>{driver.name}</span>
+                                {driver.driver_license && (
+                                  <span className="text-muted-foreground text-xs">
+                                    ({driver.driver_license})
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="none" disabled>
+                            No drivers available
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {driverOptions.length === 0 && !loadingDrivers && (
+                    <p className="text-xs text-destructive">
+                      No drivers available. Add a driver before approving this request.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {selectedRequest.has_consumption && (
                 <div className="space-y-2 bg-orange-50/50 p-3 rounded-lg border border-orange-100">
                   <Label htmlFor="ga_consumption_note" className="text-orange-800">
@@ -399,7 +454,7 @@ const PendingCarRequestsPageContent = () => {
             <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={handleApprove}
-              disabled={!selectedCarId || approveCarRequest.isPending}
+              disabled={!canApprove || approveCarRequest.isPending}
             >
               {approveCarRequest.isPending ? 'Approving…' : 'Approve Request'}
             </Button>

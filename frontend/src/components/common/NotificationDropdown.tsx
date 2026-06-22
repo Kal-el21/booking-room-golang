@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Bell, CheckCheck, Trash2, Wifi, WifiOff, RefreshCw, FileText, Calendar, Clock } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, Wifi, WifiOff, RefreshCw, FileText, Calendar, Clock, Car as CarIcon, XCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 export const NotificationDropdown = () => {
@@ -61,8 +61,10 @@ export const NotificationDropdown = () => {
     // Navigate based on notification type
     if (notification.booking_id) {
       navigate(`/user/bookings/${notification.booking_id}`);
-    } else if (notification.request_id) {
-      navigate(`/user/requests/${notification.request_id}`);
+    } else if (notification.car_booking_id) {
+      navigate(`/user/car-bookings/${notification.car_booking_id}`);
+    } else {
+      navigate(`/user/requests/${(notification as any).request_id}`);
     }
     
     setIsOpen(false);
@@ -77,6 +79,10 @@ export const NotificationDropdown = () => {
       request_submitted: <FileText className="h-4 w-4" />,
       request_approved: <FileText className="h-4 w-4" />,
       request_rejected: <FileText className="h-4 w-4" />,
+      new_car_request: <CarIcon className="h-4 w-4" />,
+      car_booking_confirmed: <CarIcon className="h-4 w-4" />,
+      car_booking_rejected: <CarIcon className="h-4 w-4" />,
+      car_booking_cancelled: <XCircle className="h-4 w-4" />,
     };
     return icons[type] || <Bell className="h-4 w-4" />;
   };
@@ -90,6 +96,10 @@ export const NotificationDropdown = () => {
       request_submitted: 'text-purple-600 bg-purple-100',
       request_approved: 'text-green-600 bg-green-100',
       request_rejected: 'text-red-600 bg-red-100',
+      new_car_request: 'text-blue-600 bg-blue-100',
+      car_booking_confirmed: 'text-blue-600 bg-blue-100',
+      car_booking_rejected: 'text-red-600 bg-red-100',
+      car_booking_cancelled: 'text-red-600 bg-red-100',
     };
     return colors[type] || 'text-gray-600 bg-gray-100';
   };

@@ -200,6 +200,7 @@ export const getCarBookingStatusLabel = (status: string): string => {
     picked_up:  'Picked Up',
     in_use:     'In Use',
     returned:   'Returned',
+    completed:  'Completed',
     late_return:'Late Return',
     cancelled:  'Cancelled',
   };
@@ -215,8 +216,22 @@ export const getCarBookingStatusConfig = (status: string): 'default' | 'outline'
     picked_up:   'outline',
     in_use:      'secondary',
     returned:    'default',
+    completed:   'default',
     late_return: 'destructive',
     cancelled:   'destructive',
   };
   return map[status] || 'outline';
+};
+
+/**
+ * Check if a car booking can be cancelled
+ * Only confirmed bookings that haven't started yet can be cancelled
+ */
+export const canCancelCarBooking = (booking: Partial<CarBooking>): boolean => {
+  if (booking.status !== 'confirmed') return false;
+  if (!booking.departure_date) return false;
+  if (!booking.start_time) return false;
+
+  const bookingDateTime = new Date(`${booking.departure_date}T${booking.start_time}:00`);
+  return new Date() < bookingDateTime;
 };
